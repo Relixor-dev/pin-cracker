@@ -1,6 +1,8 @@
 let current = "";
 let pinLength = 4;
 let maxAttempts = 8;
+let selectedDifficulty = "normal";
+let selectedMaxAttempts = 8;
 let gameOver = false;
 let soundEnabled = true;
 let winStreak = parseInt(localStorage.getItem("pinCrackerStreak") || "0", 10);
@@ -14,7 +16,7 @@ function playTone(freq, duration, type) {
     const gain = audioCtx.createGain();
     osc.type = type || "sine";
     osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-    gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+    gain.gain.setValueAtTime(0.07, audioCtx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
     osc.connect(gain);
     gain.connect(audioCtx.destination);
@@ -40,17 +42,32 @@ window.addEventListener("DOMContentLoaded", function() {
     updateScreen();
 });
 
+function selectOption(groupName, val, btnEl) {
+    playTone(580, 0.05, "sine");
+    const containerId = groupName === "difficulty" ? "difficulty-group" : "attempts-group";
+    document.querySelectorAll("#" + containerId + " .seg-btn").forEach(function(b) {
+        b.classList.remove("active");
+    });
+    btnEl.classList.add("active");
+
+    if (groupName === "difficulty") {
+        selectedDifficulty = val;
+    } else {
+        selectedMaxAttempts = parseInt(val, 10);
+    }
+}
+
 function updateStreakDisplay() {
     const startStreak = document.getElementById("start-streak");
     const gameStreak = document.getElementById("game-streak");
-    if (startStreak) startStreak.innerText = "Current Win Streak: " + winStreak;
-    if (gameStreak) gameStreak.innerText = "Streak: " + winStreak;
+    if (startStreak) startStreak.innerText = "STREAK: " + winStreak;
+    if (gameStreak) gameStreak.innerText = "STREAK " + winStreak;
 }
 
 function toggleSound() {
     soundEnabled = !soundEnabled;
     const btn = document.getElementById("sound-btn");
-    btn.innerText = soundEnabled ? "Sound: ON" : "Sound: OFF";
+    btn.innerText = soundEnabled ? "SFX: ON" : "SFX: OFF";
     if (soundEnabled) playTone(520, 0.08, "sine");
 }
 
@@ -63,7 +80,7 @@ function closeRules() {
 }
 
 async function startGame() {
-    playTone(440, 0.09, "sine");
+    playTone(620, 0.1, "triangle");
     document.getElementById("start-screen").classList.add("hidden");
     document.getElementById("game-screen").classList.remove("hidden");
     await resetGame();
@@ -74,17 +91,22 @@ function backToMenu() {
     document.getElementById("game-screen").classList.add("hidden");
     document.getElementById("start-screen").classList.remove("hidden");
 }
-
 function updateScreen() {
     const screen = document.getElementById("screen");
     screen.classList.remove("locked");
     screen.innerText = current.padEnd(pinLength, "_");
 }
 
+function setLockStatus(text, stateClass) {
+    const el = document.getElementById("lock-status");
+    el.innerText = text;
+    el.className = "tele-val " + stateClass;
+}
+
 function updateAttemptsDisplay(used, max) {
     const el = document.getElementById("attempts-display");
     if (max === 0) {
-        el.innerText = "Unlimited (Used: " + used + ")";
+        el.innerText = "∞ (USED: " + used + ")";
         el.classList.remove("danger");
     } else {
         const left = Math.max(0, max - used);
@@ -161,18 +183,20 @@ async function submitGuess() {
     if (data.won) {
         gameOver = true;
         setKeypadDisabled(true);
+        setLockStatus("BREACHED", "status-unlocked");
         winStreak += 1;
         localStorage.setItem("pinCrackerStreak", String(winStreak));
         updateStreakDisplay();
         playWinSound();
 
         entry.classList.add("win");
-        statusText.innerText = "UNLOCKED in " + data.attempts + "!";
+        statusText.innerText = "ACCESS GRANTED (" + data.attempts + ")";
         entry.appendChild(statusText);
-        entry.appendChild(buildResetButton("New PIN"));
+        entry.appendChild(buildResetButton("NEXT VAULT"));
     } else if (data.lost) {
         gameOver = true;
         setKeypadDisabled(true);
+        setLockStatus("ALARM TRIGGERED", "danger");
         winStreak = 0;
         localStorage.setItem("pinCrackerStreak", "0");
         updateStreakDisplay();
@@ -180,14 +204,14 @@ async function submitGuess() {
 
         const screen = document.getElementById("screen");
         screen.classList.add("locked");
-        screen.innerText = "PIN: " + data.secret;
+        screen.innerText = "CODE: " + data.secret;
         entry.classList.add("lose");
-        statusText.innerText = "LOCKED OUT!";
+        statusText.innerText = "LOCKED OUT";
         entry.appendChild(statusText);
-        entry.appendChild(buildResetButton("Try Again"));
+        entry.appendChild(buildResetButton("RETRY"));
     } else {
         playTone(390, 0.08, "triangle");
-        statusText.innerText = data.exact + " exact, " + data.misplaced + " misplaced";
+        statusText.innerText = data.exact + " VERIFIED // " + data.misplaced + " SHIFTED";
         entry.appendChild(statusText);
     }
 
@@ -195,13 +219,13 @@ async function submitGuess() {
 }
 
 async function resetGame() {
-    const difficulty = document.getElementById("difficulty").value;
-    const maxVal = parseInt(document.getElementById("max-attempts").value, 10);
-
     const res = await fetch("/reset", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ difficulty: difficulty, max_attempts: maxVal })
+        body: JSON.stringify({
+            difficulty: selectedDifficulty,
+            max_attempts: selectedMaxAttempts
+        })
     });
     const data = await res.json();
 
@@ -211,6 +235,7 @@ async function resetGame() {
     current = "";
 
     setKeypadDisabled(false);
+    setLockStatus("LOCKED", "status-locked");
     updateScreen();
     updateAttemptsDisplay(0, maxAttempts);
 

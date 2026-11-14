@@ -36,16 +36,15 @@ def generate_hints(code):
         else:
             possible_hints.append(f"Digit #{pos} is less than 5.")
 
-    first_digit = digits
-    last_digit = digits[-1]
+    temp = list(digits)
+    first_digit = temp.pop(0)
+    second_digit = temp.pop(0)
+    third_digit = temp.pop(0)
+    last_digit = int(code[-1])
 
     possible_hints.append(f"The sum of all {length} digits is {sum(digits)}.")
     possible_hints.append(f"Digit #1 + Digit #{length} equals {first_digit + last_digit}.")
-
-    if length >= 3:
-        second_digit = digits
-        third_digit = digits
-        possible_hints.append(f"Digit #2 + Digit #3 equals {second_digit + third_digit}.")
+    possible_hints.append(f"Digit #2 + Digit #3 equals {second_digit + third_digit}.")
 
     if first_digit > last_digit:
         possible_hints.append(f"Digit #1 is larger than Digit #{length}.")
@@ -67,16 +66,16 @@ def evaluate_guess(secret, guess):
     statuses = ["absent"] * length
     secret_remaining = {}
 
-    for i in range(length):
-        if guess[i] == secret[i]:
-            statuses[i] = "correct"
-        else:
-            secret_remaining[secret[i]] = secret_remaining.get(secret[i], 0) + 1
+    for s, g in zip(secret, guess):
+        if s != g:
+            secret_remaining[s] = secret_remaining.get(s, 0) + 1
 
-    for i in range(length):
-        if statuses[i] == "absent" and secret_remaining.get(guess[i], 0) > 0:
+    for i, (s, g) in enumerate(zip(secret, guess)):
+        if s == g:
+            statuses[i] = "correct"
+        elif secret_remaining.get(g, 0) > 0:
             statuses[i] = "present"
-            secret_remaining[guess[i]] -= 1
+            secret_remaining[g] -= 1
 
     exact = statuses.count("correct")
     misplaced = statuses.count("present")
