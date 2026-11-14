@@ -885,3 +885,64 @@ body {
     border-color: var(--accent-cyan);
     color: var(--accent-cyan);
 }
+.mode-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.mode-card-btn {
+    border-radius: 9px;
+    padding: 11px 8px;
+    font-family: inherit;
+    font-size: 0.74rem;
+    font-weight: 800;
+    letter-spacing: 0.6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.mode-card-btn.cyan {
+    background: rgba(0, 229, 255, 0.12);
+    color: var(--accent-cyan);
+    border: 1px solid rgba(0, 229, 255, 0.4);
+}
+.mode-card-btn.cyan:hover { background: rgba(0, 229, 255, 0.22); }
+
+.mode-card-btn.red {
+    background: rgba(255, 61, 87, 0.12);
+    color: var(--accent-red);
+    border: 1px solid rgba(255, 61, 87, 0.4);
+}
+.mode-card-btn.red:hover { background: rgba(255, 61, 87, 0.22); }
+
+.mode-card-btn.amber {
+    background: rgba(255, 171, 0, 0.12);
+    color: var(--accent-amber);
+    border: 1px solid rgba(255, 171, 0, 0.4);
+}
+.mode-card-btn.amber:hover { background: rgba(255, 171, 0, 0.22); }
+
+.mode-card-btn.purple {
+    background: rgba(192, 132, 252, 0.12);
+    color: #c084fc;
+    border: 1px solid rgba(192, 132, 252, 0.4);
+}
+.mode-card-btn.purple:hover { background: rgba(192, 132, 252, 0.22); }
+
+.terminal-input {
+    width: 100%;
+    background: var(--inset-bg);
+    color: var(--accent-cyan);
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 11px 12px;
+    font-family: inherit;
+    font-size: 0.92rem;
+    font-weight: 700;
+}
+
+.terminal-input:focus {
+    outline: none;
+    border-color: var(--accent-cyan);
+}

@@ -11,11 +11,17 @@ DIFFICULTY_LENGTHS = {
     "hard": 5
 }
 
+HEIST_STAGES = [
+    {"stage": 1, "length": 3, "attempts": 5, "label": "STAGE 1/3 // OUTER GATE"},
+    {"stage": 2, "length": 4, "attempts": 4, "label": "STAGE 2/3 // LASER GRID"},
+    {"stage": 3, "length": 5, "attempts": 3, "label": "STAGE 3/3 // MAIN CORE"}
+]
+
 def generate_code(length=4, rng=None):
     r = rng if rng else random
     return "".join(str(r.randint(0, 9)) for _ in range(length))
 
-def generate_hints(code, rng=None):
+def generate_hints(code, rng=None, total_count=None):
     r = rng if rng else random
     digits = [int(d) for d in code]
     length = len(digits)
@@ -61,8 +67,8 @@ def generate_hints(code, rng=None):
     else:
         possible_hints.append("All digits in the PIN are unique.")
 
-    num_hints = 3 if length <= 4 else 4
-    return r.sample(possible_hints, num_hints)
+    count = total_count if total_count else (3 if length <= 4 else 4)
+    return r.sample(possible_hints, min(count, len(possible_hints)))
 
 def evaluate_guess(secret, guess):
     length = len(secret)
@@ -83,36 +89,72 @@ def evaluate_guess(secret, guess):
     exact = statuses.count("correct")
     misplaced = statuses.count("present")
     return statuses, exact, misplaced
+def start_new_session(difficulty="normal", max_attempts=8, mode="standard", stage=1, custom_pin="", custom_note=""):
+    progressive = False
+    stage_label = ""
 
-def start_new_session(difficulty="normal", max_attempts=8, daily=False):
-    if daily:
+    if mode == "daily":
         today_str = date.today().isoformat()
         seeded_rng = random.Random(f"pin-cracker-{today_str}")
         length = 4
         max_attempts = 6
         code = generate_code(length, seeded_rng)
-        hints = generate_hints(code, seeded_rng)
-        session["daily"] = True
+        all_hints = generate_hints(code, seeded_rng)
         session["daily_date"] = today_str
+    elif mode == "heist":
+        idx = max(0, min(2, int(stage) - 1))
+        cfg = HEIST_STAGES.copy().pop(idx)
+        length = cfg["length"]
+        max_attempts = cfg["attempts"]
+        stage_label = cfg["label"]
+        code = generate_code(length)
+        all_hints = generate_hints(code)
+        session["daily_date"] = None
+    elif mode == "custom" and custom_pin.isdigit() and 3 <= len(custom_pin) <= 5:
+        code = custom_pin
+        length = len(code)
+        max_attempts = int(max_attempts) if int(max_attempts) > 0 else 6
+        all_hints = generate_hints(code, total_count=2)
+        if custom_note.strip():
+            all_hints.insert(0, f"AGENT NOTE: {custom_note.strip()[:60]}")
+        session["daily_date"] = None
     else:
         length = DIFFICULTY_LENGTHS.get(difficulty, 4)
         code = generate_code(length)
-        hints = generate_hints(code)
-        session["daily"] = False
+        progressive = (mode == "progressive")
+        total = 5 if progressive else (3 if length <= 4 else 4)
+        all_hints = generate_hints(code, total_count=total)
         session["daily_date"] = None
 
+    visible_hints = all_hints[:1] if progressive else all_hints
+    hidden_hints = all_hints[1:] if progressive else []
+
     session["code"] = code
+    session["mode"] = mode
+    session["heist_stage"] = int(stage)
     session["difficulty"] = difficulty
     session["length"] = length
     session["max_attempts"] = int(max_attempts)
     session["attempts"] = 0
     session["revealed_slots"] = []
-    return hints, length, int(max_attempts)
+    session["hidden_hints"] = hidden_hints
+    session["progressive"] = progressive
+
+    return {
+        "hints": visible_hints,
+        "hidden_count": len(hidden_hints),
+        "length": length,
+        "max_attempts": int(max_attempts),
+        "mode": mode,
+        "heist_stage": int(stage),
+        "stage_label": stage_label,
+        "daily_date": session.get("daily_date")
+    }
 
 @app.route("/")
 def index():
-    hints, length, _ = start_new_session("normal", 8, False)
-    return render_template("index.html", hints=hints, length=length)
+    info = start_new_session("normal", 8, "standard")
+    return render_template("index.html", hints=info["hints"], length=info["length"])
 
 @app.route("/guess", methods=["POST"])
 def guess():
@@ -123,8 +165,9 @@ def guess():
     max_attempts = session.get("max_attempts", 8)
 
     if not secret:
-        _, length, max_attempts = start_new_session()
+        info = start_new_session()
         secret = session["code"]
+        length = info["length"]
 
     if len(user_guess) != length or not user_guess.isdigit():
         return jsonify({"error": f"Enter a {length}-digit PIN!"})
@@ -136,6 +179,12 @@ def guess():
     won = (user_guess == secret)
     lost = (not won and max_attempts > 0 and attempts >= max_attempts)
 
+    unlocked_hint = None
+    hidden = session.get("hidden_hints", [])
+    if not won and not lost and hidden:
+        unlocked_hint = hidden.pop(0)
+        session["hidden_hints"] = hidden
+
     return jsonify({
         "won": won,
         "lost": lost,
@@ -145,8 +194,11 @@ def guess():
         "misplaced": misplaced,
         "attempts": attempts,
         "max_attempts": max_attempts,
-        "daily": session.get("daily", False),
-        "daily_date": session.get("daily_date")
+        "mode": session.get("mode", "standard"),
+        "heist_stage": session.get("heist_stage", 1),
+        "daily_date": session.get("daily_date"),
+        "unlocked_hint": unlocked_hint,
+        "hidden_count": len(hidden)
     })
 
 @app.route("/decrypt", methods=["POST"])
@@ -159,10 +211,8 @@ def decrypt():
 
     if not secret:
         return jsonify({"error": "No active session."})
-
     if len(revealed) >= 1:
         return jsonify({"error": "EMERGENCY DECRYPT ALREADY USED THIS ROUND"})
-
     if max_attempts > 0 and (max_attempts - attempts) <= 1:
         return jsonify({"error": "INSUFFICIENT ATTEMPTS TO DECRYPT"})
 
@@ -184,59 +234,23 @@ def decrypt():
         "max_attempts": max_attempts
     })
 
-
-    if not secret:
-        return jsonify({"error": "No active session."})
-
-    # Require at least 2 tries left if attempts are capped
-    if max_attempts > 0 and (max_attempts - attempts) <= 1:
-        return jsonify({"error": "INSUFFICIENT ATTEMPTS TO DECRYPT"})
-
-    unrevealed = [i for i in range(length) if i not in revealed]
-    if not unrevealed:
-        return jsonify({"error": "ALL SLOTS ALREADY DECRYPTED"})
-
-    slot = random.choice(unrevealed)
-    revealed.append(slot)
-    session["revealed_slots"] = revealed
-    session["attempts"] = attempts + 1
-
-    # Grab digit safely without list indexing brackets
-    temp_chars = list(secret)
-    for _ in range(slot):
-        temp_chars.pop(0)
-    digit_val = temp_chars.pop(0)
-
-    return jsonify({
-        "clue": f"DECRYPTED: Digit #{slot + 1} is {digit_val}.",
-        "slot": slot,
-        "digit": digit_val,
-        "attempts": session["attempts"],
-        "max_attempts": max_attempts
-    })
-
 @app.route("/timeout", methods=["POST"])
 def timeout():
-    secret = session.get("code", "0000")
-    return jsonify({"secret": secret})
+    return jsonify({"secret": session.get("code", "0000")})
 
 @app.route("/reset", methods=["POST"])
 def reset():
     data = request.get_json() or {}
-    daily = bool(data.get("daily", False))
-    difficulty = data.get("difficulty", session.get("difficulty", "normal"))
-    max_attempts = data.get("max_attempts", session.get("max_attempts", 8))
-
-    hints, length, final_max = start_new_session(difficulty, max_attempts, daily)
-    return jsonify({
-        "status": "reset",
-        "hints": hints,
-        "length": length,
-        "max_attempts": final_max,
-        "daily": daily,
-        "daily_date": session.get("daily_date")
-    })
+    info = start_new_session(
+        difficulty=data.get("difficulty", "normal"),
+        max_attempts=data.get("max_attempts", 8),
+        mode=data.get("mode", "standard"),
+        stage=data.get("stage", 1),
+        custom_pin=data.get("custom_pin", ""),
+        custom_note=data.get("custom_note", "")
+    )
+    info["status"] = "reset"
+    return jsonify(info)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True, use_reloader=False)
-

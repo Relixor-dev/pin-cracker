@@ -4,7 +4,11 @@ let maxAttempts = 8;
 let selectedDifficulty = "normal";
 let selectedMaxAttempts = 8;
 let selectedTimerSeconds = 0;
-let isDailyMode = false;
+
+let gameMode = "standard";
+let heistStage = 1;
+let customPin = "";
+let customNote = "";
 let dailyDateStr = "";
 let guessHistory = [];
 
@@ -60,6 +64,21 @@ window.addEventListener("DOMContentLoaded", function() {
     buildDigitMatrix();
     updateStatsDisplay();
     updateScreen();
+
+    const params = new URLSearchParams(window.location.search);
+    const sharedCode = params.get("v");
+    if (sharedCode) {
+        try {
+            const decoded = JSON.parse(atob(sharedCode));
+            if (decoded.pin && decoded.pin.length >= 3 && decoded.pin.length <= 5) {
+                customPin = decoded.pin;
+                customNote = decoded.note || "";
+                startGame("custom");
+            }
+        } catch (err) {
+            console.warn("Invalid custom vault link");
+        }
+    }
 });
 
 function buildDigitMatrix() {
@@ -204,8 +223,16 @@ function updateStatsDisplay() {
     if (gameStreak) gameStreak.innerText = "STREAK " + winStreak;
     if (statBest) statBest.innerText = String(bestStreak);
     if (statCracked) statCracked.innerText = String(totalCracked);
-    if (statMode) statMode.innerText = isDailyMode ? "DAILY (4-DIGIT)" : (pinLength + "-DIGIT");
-    if (hudTitle) hudTitle.innerText = isDailyMode ? "DAILY_VAULT" : "PIN_CRACKER";
+
+    const modeLabels = {
+        daily: "DAILY VAULT",
+        heist: "HEIST STAGE " + heistStage + "/3",
+        progressive: "PROGRESSIVE (" + pinLength + "D)",
+        custom: "FRIEND VAULT",
+        standard: pinLength + "-DIGIT"
+    };
+    if (statMode) statMode.innerText = modeLabels[gameMode] || (pinLength + "-DIGIT");
+    if (hudTitle) hudTitle.innerText = gameMode === "heist" ? ("HEIST_STAGE_" + heistStage) : (gameMode.toUpperCase() + "_VAULT");
 }
 
 function toggleSound() {
@@ -215,16 +242,43 @@ function toggleSound() {
     if (soundEnabled) playTone(520, 0.08, "sine", 0.06);
 }
 
-function openRules() {
-    document.getElementById("rules-modal").classList.remove("hidden");
+function openRules() { document.getElementById("rules-modal").classList.remove("hidden"); }
+function closeRules() { document.getElementById("rules-modal").classList.add("hidden"); }
+function openCustomModal() { document.getElementById("custom-modal").classList.remove("hidden"); }
+function closeCustomModal() { document.getElementById("custom-modal").classList.add("hidden"); }
+
+function readCustomInputs() {
+    const pin = document.getElementById("custom-pin-input").value.trim();
+    const note = document.getElementById("custom-note-input").value.trim();
+    if (!/^\d{3,5}$/.test(pin)) {
+        alert("Enter a 3, 4, or 5 digit numeric PIN!");
+        return null;
+    }
+    return { pin: pin, note: note };
 }
 
-function closeRules() {
-    document.getElementById("rules-modal").classList.add("hidden");
+function copyCustomLink() {
+    const payload = readCustomInputs();
+    if (!payload) return;
+    const encoded = btoa(JSON.stringify(payload));
+    const url = window.location.origin + "/?v=" + encoded;
+    navigator.clipboard.writeText(url);
+    playTone(740, 0.1, "triangle", 0.07);
+    alert("Challenge link copied to clipboard! Send it to a friend.");
 }
 
-async function startGame(daily) {
-    isDailyMode = Boolean(daily);
+async function launchCustomLocal() {
+    const payload = readCustomInputs();
+    if (!payload) return;
+    customPin = payload.pin;
+    customNote = payload.note;
+    closeCustomModal();
+    await startGame("custom");
+}
+
+async function startGame(mode) {
+    gameMode = mode || "standard";
+    heistStage = 1;
     playTone(620, 0.1, "triangle", 0.07);
     document.getElementById("start-screen").classList.add("hidden");
     document.getElementById("game-screen").classList.remove("hidden");
@@ -304,12 +358,19 @@ function buildTiles(guess, statuses) {
     return container;
 }
 
-function buildResetButton(label) {
+function buildResetButton(label, nextStage) {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "reset-btn";
     btn.innerText = label;
-    btn.onclick = resetGame;
+    btn.onclick = function() {
+        if (nextStage) {
+            heistStage = nextStage;
+        } else if (gameMode === "heist") {
+            heistStage = 1;
+        }
+        resetGame();
+    };
     return btn;
 }
 
@@ -328,9 +389,9 @@ function buildShareButton(attemptsUsed, maxTries, won) {
     btn.className = "share-btn";
     btn.innerText = "SHARE";
     btn.onclick = function() {
-        const header = isDailyMode
+        const header = gameMode === "daily"
             ? "PIN CRACKER // Daily Vault (" + dailyDateStr + ")"
-            : "PIN CRACKER (" + pinLength + "-Digit)";
+            : "PIN CRACKER [" + gameMode.toUpperCase() + "]";
         const score = won ? (attemptsUsed + "/" + (maxTries || "∞")) : "X/" + (maxTries || "∞");
         const rows = guessHistory.map(function(statuses) {
             return statuses.map(function(s) {
@@ -339,8 +400,7 @@ function buildShareButton(attemptsUsed, maxTries, won) {
                 return "⬛";
             }).join("");
         }).join("\n");
-        const text = header + " — " + score + "\n" + rows;
-        navigator.clipboard.writeText(text);
+        navigator.clipboard.writeText(header + " — " + score + "\n" + rows);
         btn.innerText = "COPIED!";
         playTone(720, 0.08, "sine", 0.06);
         setTimeout(function() { btn.innerText = "SHARE"; }, 1800);
@@ -364,7 +424,6 @@ async function buyClue() {
             decryptBtn.disabled = true;
             decryptBtn.innerText = "DECRYPT USED (1/1)";
         }
-
         playTone(740, 0.12, "triangle", 0.07);
         updateAttemptsDisplay(data.attempts, data.max_attempts);
 
@@ -381,7 +440,6 @@ async function buyClue() {
         isSubmitting = false;
     }
 }
-
 async function submitGuess() {
     if (gameOver || isSubmitting || current.length !== pinLength) return;
     isSubmitting = true;
@@ -402,6 +460,14 @@ async function submitGuess() {
         updateAttemptsDisplay(data.attempts, data.max_attempts);
         updateDigitMatrix(guess, data.statuses);
 
+        const hintsList = document.getElementById("hints-list");
+        if (data.unlocked_hint) {
+            const li = document.createElement("li");
+            li.className = "decrypted-clue";
+            li.innerText = "[DECRYPTED] " + data.unlocked_hint;
+            hintsList.appendChild(li);
+        }
+
         const log = document.getElementById("log");
         const entry = document.createElement("div");
         entry.className = "log-entry";
@@ -410,29 +476,38 @@ async function submitGuess() {
         const statusText = document.createElement("span");
 
         if (data.won) {
+            const isHeistAdvance = (gameMode === "heist" && heistStage < 3);
             gameOver = true;
-            stopTimer();
+            if (!isHeistAdvance) stopTimer();
             setKeypadDisabled(true);
-            setLockStatus("BREACHED", "status-unlocked");
+            setLockStatus(isHeistAdvance ? "STAGE CLEARED" : "BREACHED", "status-unlocked");
 
-            winStreak += 1;
-            totalCracked += 1;
-            if (winStreak > bestStreak) bestStreak = winStreak;
-            localStorage.setItem("pinCrackerStreak", String(winStreak));
-            localStorage.setItem("pinCrackerBest", String(bestStreak));
-            localStorage.setItem("pinCrackerTotal", String(totalCracked));
+            if (!isHeistAdvance) {
+                winStreak += 1;
+                totalCracked += 1;
+                if (winStreak > bestStreak) bestStreak = winStreak;
+                localStorage.setItem("pinCrackerStreak", String(winStreak));
+                localStorage.setItem("pinCrackerBest", String(bestStreak));
+                localStorage.setItem("pinCrackerTotal", String(totalCracked));
+            }
             updateStatsDisplay();
             playWinSound();
 
             entry.classList.add("win");
-            statusText.innerText = "ACCESS GRANTED (" + data.attempts + ")";
+            statusText.innerText = isHeistAdvance
+                ? ("STAGE " + heistStage + " BYPASSED!")
+                : ("ACCESS GRANTED (" + data.attempts + ")");
             entry.appendChild(statusText);
 
             const winActions = document.createElement("div");
             winActions.className = "action-group";
-            winActions.appendChild(buildShareButton(data.attempts, data.max_attempts, true));
-            winActions.appendChild(buildResetButton("NEXT VAULT"));
-            winActions.appendChild(buildMenuButton());
+            if (isHeistAdvance) {
+                winActions.appendChild(buildResetButton("STAGE " + (heistStage + 1) + " →", heistStage + 1));
+            } else {
+                winActions.appendChild(buildShareButton(data.attempts, data.max_attempts, true));
+                winActions.appendChild(buildResetButton("NEXT VAULT", gameMode === "heist" ? 1 : null));
+                winActions.appendChild(buildMenuButton());
+            }
             entry.appendChild(winActions);
         } else if (data.lost) {
             gameOver = true;
@@ -455,7 +530,7 @@ async function submitGuess() {
             const loseActions = document.createElement("div");
             loseActions.className = "action-group";
             loseActions.appendChild(buildShareButton(data.attempts, data.max_attempts, false));
-            loseActions.appendChild(buildResetButton("RETRY"));
+            loseActions.appendChild(buildResetButton("RETRY", gameMode === "heist" ? 1 : null));
             loseActions.appendChild(buildMenuButton());
             entry.appendChild(loseActions);
         } else {
@@ -473,14 +548,19 @@ async function submitGuess() {
 async function resetGame() {
     isSubmitting = false;
     decryptUsed = false;
-    stopTimer();
+    const keepHeistTimer = (gameMode === "heist" && heistStage > 1 && timerInterval !== null);
+    if (!keepHeistTimer) stopTimer();
+
     const res = await fetch("/reset", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-            daily: isDailyMode,
+            mode: gameMode,
+            stage: heistStage,
             difficulty: selectedDifficulty,
-            max_attempts: selectedMaxAttempts
+            max_attempts: selectedMaxAttempts,
+            custom_pin: customPin,
+            custom_note: customNote
         })
     });
     const data = await res.json();
@@ -496,6 +576,13 @@ async function resetGame() {
     if (decryptBtn) {
         decryptBtn.disabled = false;
         decryptBtn.innerText = "EMERGENCY DECRYPT (-1 TRY)";
+    }
+
+    const boxTitle = document.getElementById("hints-box-title");
+    if (boxTitle) {
+        boxTitle.innerText = data.stage_label
+            ? ("// " + data.stage_label)
+            : (data.hidden_count > 0 ? ("// TELEMETRY (" + data.hidden_count + " ENCRYPTED)") : "// INTERCEPTED TELEMETRY");
     }
 
     setKeypadDisabled(false);
@@ -514,12 +601,13 @@ async function resetGame() {
     });
     document.getElementById("log").innerHTML = "";
 
-        if (isDailyMode) {
+    if (gameMode === "daily" || gameMode === "custom") {
         startCountdown(0);
+    } else if (gameMode === "heist") {
+        if (!keepHeistTimer) startCountdown(60);
     } else {
         startCountdown(selectedTimerSeconds);
     }
-
 }
 
 document.addEventListener("keydown", function(e) {

@@ -17,14 +17,8 @@
     <div class="terminal-card">
         <div class="card-topbar">
             <span class="status-dot"></span>
-            <span class="sys-label">VAULT_OS v3.1 // ENCRYPTED</span>
+            <span class="sys-label">VAULT_OS v4.0 // MULTI-MODE</span>
             <span class="streak-tag" id="start-streak">STREAK: 0</span>
-        </div>
-
-        <div class="vault-emblem">
-            <div class="dial-ring">
-                <span class="dial-code">04-92</span>
-            </div>
         </div>
 
         <h1 class="start-title">PIN CRACKER</h1>
@@ -33,36 +27,63 @@
         <div class="config-section">
             <div class="config-label">SELECT SECURITY LEVEL</div>
             <div class="segmented-group" id="difficulty-group">
-                <button type="button" class="seg-btn" data-value="easy" onclick="selectOption('difficulty', 'easy', this)">3-DIGIT</button>
-                <button type="button" class="seg-btn active" data-value="normal" onclick="selectOption('difficulty', 'normal', this)">4-DIGIT</button>
-                <button type="button" class="seg-btn" data-value="hard" onclick="selectOption('difficulty', 'hard', this)">5-DIGIT</button>
+                <button type="button" class="seg-btn" onclick="selectOption('difficulty', 'easy', this)">3-DIGIT</button>
+                <button type="button" class="seg-btn active" onclick="selectOption('difficulty', 'normal', this)">4-DIGIT</button>
+                <button type="button" class="seg-btn" onclick="selectOption('difficulty', 'hard', this)">5-DIGIT</button>
             </div>
         </div>
 
         <div class="config-section">
             <div class="config-label">MAX OVERRIDE ATTEMPTS</div>
             <div class="segmented-group" id="attempts-group">
-                <button type="button" class="seg-btn" data-value="5" onclick="selectOption('attempts', '5', this)">5</button>
-                <button type="button" class="seg-btn active" data-value="8" onclick="selectOption('attempts', '8', this)">8</button>
-                <button type="button" class="seg-btn" data-value="10" onclick="selectOption('attempts', '10', this)">10</button>
-                <button type="button" class="seg-btn" data-value="0" onclick="selectOption('attempts', '0', this)">∞</button>
+                <button type="button" class="seg-btn" onclick="selectOption('attempts', '2', this)">2</button>
+                <button type="button" class="seg-btn" onclick="selectOption('attempts', '3', this)">3</button>
+                <button type="button" class="seg-btn" onclick="selectOption('attempts', '5', this)">5</button>
+                <button type="button" class="seg-btn active" onclick="selectOption('attempts', '8', this)">8</button>
+                <button type="button" class="seg-btn" onclick="selectOption('attempts', '0', this)">∞</button>
             </div>
         </div>
 
         <div class="config-section">
-            <div class="config-label">SPEEDRUN TIMER</div>
+            <div class="config-label">SPEEDRUN TIMER (STANDARD / PROGRESSIVE)</div>
             <div class="segmented-group" id="timer-group">
-                <button type="button" class="seg-btn active" data-value="0" onclick="selectOption('timer', '0', this)">OFF</button>
-                <button type="button" class="seg-btn" data-value="15" onclick="selectOption('timer', '15', this)">15s</button>
-                <button type="button" class="seg-btn" data-value="30" onclick="selectOption('timer', '30', this)">30s</button>
-                <button type="button" class="seg-btn" data-value="45" onclick="selectOption('timer', '45', this)">45s</button>
+                <button type="button" class="seg-btn active" onclick="selectOption('timer', '0', this)">OFF</button>
+                <button type="button" class="seg-btn" onclick="selectOption('timer', '15', this)">15s</button>
+                <button type="button" class="seg-btn" onclick="selectOption('timer', '30', this)">30s</button>
+                <button type="button" class="seg-btn" onclick="selectOption('timer', '45', this)">45s</button>
             </div>
         </div>
 
         <div class="start-actions">
-            <button type="button" class="launch-btn" onclick="startGame(false)">INITIATE BREACH &rarr;</button>
-            <button type="button" class="daily-btn" onclick="startGame(true)">DAILY VAULT CHALLENGE</button>
+            <button type="button" class="launch-btn" onclick="startGame('standard')">INITIATE BREACH &rarr;</button>
+            <div class="mode-grid">
+                <button type="button" class="mode-card-btn cyan" onclick="startGame('progressive')">PROGRESSIVE CLUES</button>
+                <button type="button" class="mode-card-btn red" onclick="startGame('heist')">HEIST LADDER (3 STAGES)</button>
+                <button type="button" class="mode-card-btn amber" onclick="startGame('daily')">DAILY VAULT</button>
+                <button type="button" class="mode-card-btn purple" onclick="openCustomModal()">CREATE FRIEND VAULT</button>
+            </div>
             <button type="button" class="secondary-btn" onclick="openRules()">PROTOCOL / RULES</button>
+        </div>
+    </div>
+</div>
+<div class="modal-overlay hidden" id="custom-modal" onclick="closeCustomModal()">
+    <div class="modal-card" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h2>// CREATE FRIEND VAULT</h2>
+            <button type="button" class="close-modal" onclick="closeCustomModal()">&times;</button>
+        </div>
+        <p class="modal-desc">Set a secret 3-to-5 digit PIN and an optional custom clue. Copy the generated link to challenge a friend!</p>
+        <div class="config-section">
+            <div class="config-label">SECRET PIN (3 TO 5 DIGITS)</div>
+            <input type="text" id="custom-pin-input" class="terminal-input" maxlength="5" placeholder="e.g. 4829">
+        </div>
+        <div class="config-section">
+            <div class="config-label">OPTIONAL CLUE NOTE</div>
+            <input type="text" id="custom-note-input" class="terminal-input" maxlength="60" placeholder="e.g. My birth year backwards">
+        </div>
+        <div class="start-actions">
+            <button type="button" class="launch-btn" onclick="copyCustomLink()">COPY CHALLENGE LINK</button>
+            <button type="button" class="secondary-btn" onclick="launchCustomLocal()">TEST THIS VAULT NOW</button>
         </div>
     </div>
 </div>
@@ -73,7 +94,7 @@
             <h2>// BREACH PROTOCOL</h2>
             <button type="button" class="close-modal" onclick="closeRules()">&times;</button>
         </div>
-        <p class="modal-desc">Use the intercepted math clues to narrow down the PIN digits. Stuck? Use <strong>EMERGENCY DECRYPT</strong> once per round to sacrifice 1 attempt and reveal an exact digit.</p>
+        <p class="modal-desc"><strong>Progressive Clues:</strong> Starts with 1 clue; each failed guess decrypts another.<br><strong>Heist Ladder:</strong> Beat 3-digit (5 tries) &rarr; 4-digit (4 tries) &rarr; 5-digit (3 tries) on a 60s clock.</p>
         <div class="example-row">
             <span class="tile correct">7</span>
             <span><strong>VERIFIED:</strong> Correct digit in the exact slot.</span>
@@ -88,6 +109,7 @@
         </div>
     </div>
 </div>
+
 <div class="game-container hidden" id="game-screen">
     <div class="hud-bar">
         <div class="hud-left">
@@ -128,7 +150,7 @@
                 </div>
 
                 <div class="hints-box">
-                    <div class="hints-title">// INTERCEPTED TELEMETRY</div>
+                    <div class="hints-title" id="hints-box-title">// INTERCEPTED TELEMETRY</div>
                     <ul class="hints-list" id="hints-list">
                         {% for hint in hints %}
                         <li>{{ hint }}</li>
@@ -165,7 +187,7 @@
                 EMERGENCY DECRYPT (-1 TRY)
             </button>
             <div class="stat-row">
-                <span>SECURITY LEVEL</span>
+                <span>ACTIVE MODE</span>
                 <strong id="stat-mode">4-DIGIT</strong>
             </div>
             <div class="stat-row">
