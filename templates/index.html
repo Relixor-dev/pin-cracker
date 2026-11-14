@@ -17,7 +17,7 @@
     <div class="terminal-card">
         <div class="card-topbar">
             <span class="status-dot"></span>
-            <span class="sys-label">VAULT_OS v4.0 // MULTI-MODE</span>
+            <span class="rank-pill" id="start-rank">RANK: SCRIPT KIDDIE (0 XP)</span>
             <span class="streak-tag" id="start-streak">STREAK: 0</span>
         </div>
 
@@ -45,12 +45,24 @@
         </div>
 
         <div class="config-section">
-            <div class="config-label">SPEEDRUN TIMER (STANDARD / PROGRESSIVE)</div>
+            <div class="config-label">SPEEDRUN TIMER</div>
             <div class="segmented-group" id="timer-group">
                 <button type="button" class="seg-btn active" onclick="selectOption('timer', '0', this)">OFF</button>
                 <button type="button" class="seg-btn" onclick="selectOption('timer', '15', this)">15s</button>
                 <button type="button" class="seg-btn" onclick="selectOption('timer', '30', this)">30s</button>
                 <button type="button" class="seg-btn" onclick="selectOption('timer', '45', this)">45s</button>
+            </div>
+        </div>
+
+        <div class="config-section">
+            <div class="config-label">FIREWALL MUTATORS (+XP BONUS)</div>
+            <div class="mutator-grid">
+                <button type="button" class="mutator-btn" id="mut-norepeat" onclick="toggleMutator('noRepeat', this)">
+                    NO-REPEAT DIGITS (+25 XP)
+                </button>
+                <button type="button" class="mutator-btn" id="mut-timedrain" onclick="toggleMutator('timeDrain', this)">
+                    TIME DRAIN -2s/MISS (+35 XP)
+                </button>
             </div>
         </div>
 
@@ -72,10 +84,21 @@
             <h2>// CREATE FRIEND VAULT</h2>
             <button type="button" class="close-modal" onclick="closeCustomModal()">&times;</button>
         </div>
-        <p class="modal-desc">Set a secret 3-to-5 digit PIN and an optional custom clue. Copy the generated link to challenge a friend!</p>
+        <p class="modal-desc">Set a secret 3-to-5 digit PIN, choose how many math clues to include (0 to 5), and share the link!</p>
         <div class="config-section">
             <div class="config-label">SECRET PIN (3 TO 5 DIGITS)</div>
             <input type="text" id="custom-pin-input" class="terminal-input" maxlength="5" placeholder="e.g. 4829">
+        </div>
+        <div class="config-section">
+            <div class="config-label">AUTO-GENERATED CLUES (0 TO 5)</div>
+            <div class="segmented-group" id="custom-clues-group">
+                <button type="button" class="seg-btn" onclick="selectOption('customClues', '0', this)">0</button>
+                <button type="button" class="seg-btn" onclick="selectOption('customClues', '1', this)">1</button>
+                <button type="button" class="seg-btn active" onclick="selectOption('customClues', '2', this)">2</button>
+                <button type="button" class="seg-btn" onclick="selectOption('customClues', '3', this)">3</button>
+                <button type="button" class="seg-btn" onclick="selectOption('customClues', '4', this)">4</button>
+                <button type="button" class="seg-btn" onclick="selectOption('customClues', '5', this)">5</button>
+            </div>
         </div>
         <div class="config-section">
             <div class="config-label">OPTIONAL CLUE NOTE</div>
@@ -94,7 +117,7 @@
             <h2>// BREACH PROTOCOL</h2>
             <button type="button" class="close-modal" onclick="closeRules()">&times;</button>
         </div>
-        <p class="modal-desc"><strong>Progressive Clues:</strong> Starts with 1 clue; each failed guess decrypts another.<br><strong>Heist Ladder:</strong> Beat 3-digit (5 tries) &rarr; 4-digit (4 tries) &rarr; 5-digit (3 tries) on a 60s clock.</p>
+        <p class="modal-desc"><strong>No-Repeat Digits:</strong> All PIN digits are unique and duplicate guesses are blocked.<br><strong>Time Drain:</strong> Each invalid digit subtracts 2s in timed runs.<br><strong>Ranks:</strong> Earn XP on every breach to climb clearance levels.</p>
         <div class="example-row">
             <span class="tile correct">7</span>
             <span><strong>VERIFIED:</strong> Correct digit in the exact slot.</span>
@@ -115,6 +138,7 @@
         <div class="hud-left">
             <span class="status-dot pulse"></span>
             <span class="hud-title" id="hud-mode-title">PIN_CRACKER</span>
+            <span class="rank-hud-badge" id="hud-rank">SCRIPT KIDDIE</span>
         </div>
         <div class="hud-right">
             <span class="timer-badge hidden" id="timer-badge">30.0s</span>
@@ -137,7 +161,7 @@
         </aside>
 
         <main class="center-column">
-            <div class="calculator">
+            <div class="calculator" id="calculator-card">
                 <div class="telemetry-header">
                     <div class="telemetry-item">
                         <span class="tele-label">SYSTEM STATUS</span>
@@ -187,8 +211,16 @@
                 EMERGENCY DECRYPT (-1 TRY)
             </button>
             <div class="stat-row">
+                <span>CLEARANCE XP</span>
+                <strong id="stat-xp">0 XP</strong>
+            </div>
+            <div class="stat-row">
                 <span>ACTIVE MODE</span>
                 <strong id="stat-mode">4-DIGIT</strong>
+            </div>
+            <div class="stat-row">
+                <span>FIREWALL</span>
+                <strong id="stat-firewall">STANDARD</strong>
             </div>
             <div class="stat-row">
                 <span>BEST STREAK</span>
@@ -197,10 +229,6 @@
             <div class="stat-row">
                 <span>VAULTS CRACKED</span>
                 <strong id="stat-cracked">0</strong>
-            </div>
-            <div class="stat-row">
-                <span>SHORTCUTS</span>
-                <strong>0-9 / BKSP / ENT</strong>
             </div>
             <button type="button" class="side-reset-btn" onmouseenter="playHover()" onclick="resetGame()">NEW TARGET PIN</button>
             <button type="button" class="side-mode-btn" onmouseenter="playHover()" onclick="backToMenu()">CHANGE MODE / SETTINGS</button>

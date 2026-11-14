@@ -17,8 +17,11 @@ HEIST_STAGES = [
     {"stage": 3, "length": 5, "attempts": 3, "label": "STAGE 3/3 // MAIN CORE"}
 ]
 
-def generate_code(length=4, rng=None):
+def generate_code(length=4, rng=None, unique_only=False):
     r = rng if rng else random
+    if unique_only:
+        digits = [str(i) for i in range(10)]
+        return "".join(r.sample(digits, length))
     return "".join(str(r.randint(0, 9)) for _ in range(length))
 
 def generate_hints(code, rng=None, total_count=None):
@@ -89,16 +92,18 @@ def evaluate_guess(secret, guess):
     exact = statuses.count("correct")
     misplaced = statuses.count("present")
     return statuses, exact, misplaced
-def start_new_session(difficulty="normal", max_attempts=8, mode="standard", stage=1, custom_pin="", custom_note=""):
+def start_new_session(difficulty="normal", max_attempts=8, mode="standard", stage=1, custom_pin="", custom_note="", custom_clues=2, no_repeat=False):
     progressive = False
     stage_label = ""
+    unique_flag = bool(no_repeat)
 
     if mode == "daily":
         today_str = date.today().isoformat()
         seeded_rng = random.Random(f"pin-cracker-{today_str}")
         length = 4
         max_attempts = 6
-        code = generate_code(length, seeded_rng)
+        unique_flag = False
+        code = generate_code(length, seeded_rng, False)
         all_hints = generate_hints(code, seeded_rng)
         session["daily_date"] = today_str
     elif mode == "heist":
@@ -107,20 +112,24 @@ def start_new_session(difficulty="normal", max_attempts=8, mode="standard", stag
         length = cfg["length"]
         max_attempts = cfg["attempts"]
         stage_label = cfg["label"]
-        code = generate_code(length)
+        code = generate_code(length, None, unique_flag)
         all_hints = generate_hints(code)
         session["daily_date"] = None
-    elif mode == "custom" and custom_pin.isdigit() and 3 <= len(custom_pin) <= 5:
-        code = custom_pin
+    elif mode == "custom" and str(custom_pin).strip().isdigit() and 3 <= len(str(custom_pin).strip()) <= 5:
+        code = str(custom_pin).strip()
         length = len(code)
         max_attempts = int(max_attempts) if int(max_attempts) > 0 else 6
-        all_hints = generate_hints(code, total_count=2)
+        unique_flag = False
+        clue_count = max(0, min(5, int(custom_clues)))
+        all_hints = generate_hints(code, total_count=clue_count) if clue_count > 0 else []
         if custom_note.strip():
             all_hints.insert(0, f"AGENT NOTE: {custom_note.strip()[:60]}")
+        if not all_hints:
+            all_hints.append("NO TELEMETRY PROVIDED // DEDUCE BY KEYPAD.")
         session["daily_date"] = None
     else:
         length = DIFFICULTY_LENGTHS.get(difficulty, 4)
-        code = generate_code(length)
+        code = generate_code(length, None, unique_flag)
         progressive = (mode == "progressive")
         total = 5 if progressive else (3 if length <= 4 else 4)
         all_hints = generate_hints(code, total_count=total)
@@ -139,6 +148,7 @@ def start_new_session(difficulty="normal", max_attempts=8, mode="standard", stag
     session["revealed_slots"] = []
     session["hidden_hints"] = hidden_hints
     session["progressive"] = progressive
+    session["no_repeat"] = unique_flag
 
     return {
         "hints": visible_hints,
@@ -148,7 +158,8 @@ def start_new_session(difficulty="normal", max_attempts=8, mode="standard", stag
         "mode": mode,
         "heist_stage": int(stage),
         "stage_label": stage_label,
-        "daily_date": session.get("daily_date")
+        "daily_date": session.get("daily_date"),
+        "no_repeat": unique_flag
     }
 
 @app.route("/")
@@ -163,6 +174,7 @@ def guess():
     secret = session.get("code")
     length = session.get("length", 4)
     max_attempts = session.get("max_attempts", 8)
+    no_repeat = session.get("no_repeat", False)
 
     if not secret:
         info = start_new_session()
@@ -171,6 +183,9 @@ def guess():
 
     if len(user_guess) != length or not user_guess.isdigit():
         return jsonify({"error": f"Enter a {length}-digit PIN!"})
+
+    if no_repeat and len(set(user_guess)) != length:
+        return jsonify({"error": "FIREWALL: NO DUPLICATE DIGITS ALLOWED!"})
 
     session["attempts"] = session.get("attempts", 0) + 1
     attempts = session["attempts"]
@@ -192,6 +207,7 @@ def guess():
         "statuses": statuses,
         "exact": exact,
         "misplaced": misplaced,
+        "absent": statuses.count("absent"),
         "attempts": attempts,
         "max_attempts": max_attempts,
         "mode": session.get("mode", "standard"),
@@ -247,7 +263,9 @@ def reset():
         mode=data.get("mode", "standard"),
         stage=data.get("stage", 1),
         custom_pin=data.get("custom_pin", ""),
-        custom_note=data.get("custom_note", "")
+        custom_note=data.get("custom_note", ""),
+        custom_clues=data.get("custom_clues", 2),
+        no_repeat=data.get("no_repeat", False)
     )
     info["status"] = "reset"
     return jsonify(info)
