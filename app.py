@@ -1,4 +1,5 @@
 import random
+from datetime import date
 from flask import Flask, render_template, request, jsonify, session
 
 app = Flask(__name__)
@@ -10,10 +11,12 @@ DIFFICULTY_LENGTHS = {
     "hard": 5
 }
 
-def generate_code(length=4):
-    return "".join(str(random.randint(0, 9)) for _ in range(length))
+def generate_code(length=4, rng=None):
+    r = rng if rng else random
+    return "".join(str(r.randint(0, 9)) for _ in range(length))
 
-def generate_hints(code):
+def generate_hints(code, rng=None):
+    r = rng if rng else random
     digits = [int(d) for d in code]
     length = len(digits)
     primes = {2, 3, 5, 7}
@@ -59,7 +62,7 @@ def generate_hints(code):
         possible_hints.append("All digits in the PIN are unique.")
 
     num_hints = 3 if length <= 4 else 4
-    return random.sample(possible_hints, num_hints)
+    return r.sample(possible_hints, num_hints)
 
 def evaluate_guess(secret, guess):
     length = len(secret)
@@ -81,19 +84,34 @@ def evaluate_guess(secret, guess):
     misplaced = statuses.count("present")
     return statuses, exact, misplaced
 
-def start_new_session(difficulty="normal", max_attempts=8):
-    length = DIFFICULTY_LENGTHS.get(difficulty, 4)
-    code = generate_code(length)
+def start_new_session(difficulty="normal", max_attempts=8, daily=False):
+    if daily:
+        today_str = date.today().isoformat()
+        seeded_rng = random.Random(f"pin-cracker-{today_str}")
+        length = 4
+        max_attempts = 6
+        code = generate_code(length, seeded_rng)
+        hints = generate_hints(code, seeded_rng)
+        session["daily"] = True
+        session["daily_date"] = today_str
+    else:
+        length = DIFFICULTY_LENGTHS.get(difficulty, 4)
+        code = generate_code(length)
+        hints = generate_hints(code)
+        session["daily"] = False
+        session["daily_date"] = None
+
     session["code"] = code
     session["difficulty"] = difficulty
     session["length"] = length
     session["max_attempts"] = int(max_attempts)
     session["attempts"] = 0
-    return generate_hints(code), length
+    session["revealed_slots"] = []
+    return hints, length, int(max_attempts)
 
 @app.route("/")
 def index():
-    hints, length = start_new_session("normal", 8)
+    hints, length, _ = start_new_session("normal", 8, False)
     return render_template("index.html", hints=hints, length=length)
 
 @app.route("/guess", methods=["POST"])
@@ -105,7 +123,7 @@ def guess():
     max_attempts = session.get("max_attempts", 8)
 
     if not secret:
-        hints, length = start_new_session()
+        _, length, max_attempts = start_new_session()
         secret = session["code"]
 
     if len(user_guess) != length or not user_guess.isdigit():
@@ -126,22 +144,99 @@ def guess():
         "exact": exact,
         "misplaced": misplaced,
         "attempts": attempts,
+        "max_attempts": max_attempts,
+        "daily": session.get("daily", False),
+        "daily_date": session.get("daily_date")
+    })
+
+@app.route("/decrypt", methods=["POST"])
+def decrypt():
+    secret = session.get("code")
+    length = session.get("length", 4)
+    max_attempts = session.get("max_attempts", 8)
+    attempts = session.get("attempts", 0)
+    revealed = session.get("revealed_slots", [])
+
+    if not secret:
+        return jsonify({"error": "No active session."})
+
+    if len(revealed) >= 1:
+        return jsonify({"error": "EMERGENCY DECRYPT ALREADY USED THIS ROUND"})
+
+    if max_attempts > 0 and (max_attempts - attempts) <= 1:
+        return jsonify({"error": "INSUFFICIENT ATTEMPTS TO DECRYPT"})
+
+    slot = random.randint(0, length - 1)
+    revealed.append(slot)
+    session["revealed_slots"] = revealed
+    session["attempts"] = attempts + 1
+
+    temp_chars = list(secret)
+    for _ in range(slot):
+        temp_chars.pop(0)
+    digit_val = temp_chars.pop(0)
+
+    return jsonify({
+        "clue": f"DECRYPTED: Digit #{slot + 1} is {digit_val}.",
+        "slot": slot,
+        "digit": digit_val,
+        "attempts": session["attempts"],
         "max_attempts": max_attempts
     })
+
+
+    if not secret:
+        return jsonify({"error": "No active session."})
+
+    # Require at least 2 tries left if attempts are capped
+    if max_attempts > 0 and (max_attempts - attempts) <= 1:
+        return jsonify({"error": "INSUFFICIENT ATTEMPTS TO DECRYPT"})
+
+    unrevealed = [i for i in range(length) if i not in revealed]
+    if not unrevealed:
+        return jsonify({"error": "ALL SLOTS ALREADY DECRYPTED"})
+
+    slot = random.choice(unrevealed)
+    revealed.append(slot)
+    session["revealed_slots"] = revealed
+    session["attempts"] = attempts + 1
+
+    # Grab digit safely without list indexing brackets
+    temp_chars = list(secret)
+    for _ in range(slot):
+        temp_chars.pop(0)
+    digit_val = temp_chars.pop(0)
+
+    return jsonify({
+        "clue": f"DECRYPTED: Digit #{slot + 1} is {digit_val}.",
+        "slot": slot,
+        "digit": digit_val,
+        "attempts": session["attempts"],
+        "max_attempts": max_attempts
+    })
+
+@app.route("/timeout", methods=["POST"])
+def timeout():
+    secret = session.get("code", "0000")
+    return jsonify({"secret": secret})
 
 @app.route("/reset", methods=["POST"])
 def reset():
     data = request.get_json() or {}
+    daily = bool(data.get("daily", False))
     difficulty = data.get("difficulty", session.get("difficulty", "normal"))
     max_attempts = data.get("max_attempts", session.get("max_attempts", 8))
 
-    hints, length = start_new_session(difficulty, max_attempts)
+    hints, length, final_max = start_new_session(difficulty, max_attempts, daily)
     return jsonify({
         "status": "reset",
         "hints": hints,
         "length": length,
-        "max_attempts": int(max_attempts)
+        "max_attempts": final_max,
+        "daily": daily,
+        "daily_date": session.get("daily_date")
     })
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=True, use_reloader=False)
+

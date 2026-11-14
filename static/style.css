@@ -1,14 +1,14 @@
 :root {
-    --bg-dark: #090c10;
-    --panel-bg: #11161f;
-    --panel-border: #232d3f;
-    --inset-bg: #070a0e;
+    --bg-dark: #1b212b;
+    --panel-bg: #242c38;
+    --panel-border: #364152;
+    --inset-bg: #151a22;
     --accent-cyan: #00e5ff;
     --accent-green: #00e676;
     --accent-amber: #ffab00;
     --accent-red: #ff3d57;
-    --text-main: #e6edf3;
-    --text-muted: #7d899c;
+    --text-main: #f1f5f9;
+    --text-muted: #94a3b8;
 }
 
 * {
@@ -16,7 +16,7 @@
 }
 
 body {
-    background-color: var(--bg-dark);
+    background: radial-gradient(circle at top, #252e3c 0%, #171c24 100%);
     color: var(--text-main);
     font-family: 'JetBrains Mono', monospace;
     display: flex;
@@ -33,12 +33,13 @@ body {
     position: fixed;
     inset: 0;
     background-image: 
-        linear-gradient(to right, rgba(0, 229, 255, 0.03) 1px, transparent 1px),
-        linear-gradient(to bottom, rgba(0, 229, 255, 0.03) 1px, transparent 1px);
+        linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
     background-size: 32px 32px;
     pointer-events: none;
     z-index: -1;
 }
+
 
 .hidden {
     display: none !important;
@@ -760,4 +761,127 @@ body {
         flex-direction: row;
         justify-content: space-between;
     }
+}
+.daily-btn {
+    background: rgba(255, 171, 0, 0.12);
+    color: var(--accent-amber);
+    border: 1px solid rgba(255, 171, 0, 0.45);
+    border-radius: 10px;
+    padding: 13px 20px;
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: 800;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.daily-btn:hover {
+    background: rgba(255, 171, 0, 0.22);
+    box-shadow: 0 0 16px rgba(255, 171, 0, 0.2);
+}
+
+.timer-badge {
+    font-size: 0.8rem;
+    font-weight: 800;
+    color: var(--accent-cyan);
+    background: rgba(0, 229, 255, 0.12);
+    border: 1px solid rgba(0, 229, 255, 0.35);
+    padding: 5px 9px;
+    border-radius: 6px;
+}
+
+.timer-badge.urgent {
+    color: var(--accent-red);
+    background: rgba(255, 61, 87, 0.15);
+    border-color: rgba(255, 61, 87, 0.5);
+    animation: pulseGlow 0.6s infinite;
+}
+
+.decrypt-btn {
+    width: 100%;
+    margin-bottom: 12px;
+    background: rgba(255, 171, 0, 0.12);
+    color: var(--accent-amber);
+    border: 1px solid rgba(255, 171, 0, 0.4);
+    border-radius: 8px;
+    padding: 10px 8px;
+    font-family: inherit;
+    font-size: 0.74rem;
+    font-weight: 800;
+    letter-spacing: 0.6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.decrypt-btn:hover:not(:disabled) {
+    background: rgba(255, 171, 0, 0.22);
+}
+
+.decrypt-btn:disabled {
+    opacity: 0.38;
+    cursor: not-allowed;
+}
+
+.hints-list li.decrypted-clue {
+    color: var(--accent-cyan);
+    font-weight: 700;
+}
+
+.action-group {
+    display: flex;
+    gap: 6px;
+}
+
+.share-btn {
+    padding: 7px 11px;
+    font-size: 0.78rem;
+    background: rgba(0, 230, 118, 0.16);
+    color: var(--accent-green);
+    border: 1px solid var(--accent-green);
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: inherit;
+    font-weight: 800;
+}
+
+.share-btn:hover {
+    background: rgba(0, 230, 118, 0.28);
+}
+.side-mode-btn {
+    width: 100%;
+    margin-top: 8px;
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 9px;
+    font-family: inherit;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.side-mode-btn:hover {
+    color: #ffffff;
+    border-color: #3d4d68;
+    background: rgba(255, 255, 255, 0.04);
+}
+.menu-inline-btn {
+    padding: 7px 11px;
+    font-size: 0.78rem;
+    background: var(--inset-bg);
+    color: var(--text-main);
+    border: 1px solid var(--panel-border);
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: inherit;
+    font-weight: 800;
+}
+
+.menu-inline-btn:hover {
+    border-color: var(--accent-cyan);
+    color: var(--accent-cyan);
 }

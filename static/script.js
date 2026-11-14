@@ -3,8 +3,17 @@ let pinLength = 4;
 let maxAttempts = 8;
 let selectedDifficulty = "normal";
 let selectedMaxAttempts = 8;
+let selectedTimerSeconds = 0;
+let isDailyMode = false;
+let dailyDateStr = "";
+let guessHistory = [];
+
+let timerInterval = null;
+let timeRemaining = 0;
+
 let gameOver = false;
 let isSubmitting = false;
+let decryptUsed = false;
 let soundEnabled = true;
 let digitStates = {};
 
@@ -30,6 +39,7 @@ function playTone(freq, duration, type, volume) {
 }
 
 function playHover() {
+    if (gameOver) return;
     playTone(920, 0.022, "sine", 0.018);
 }
 
@@ -87,7 +97,12 @@ function updateDigitMatrix(guess, statuses) {
 }
 function selectOption(groupName, val, btnEl) {
     playTone(580, 0.05, "sine", 0.06);
-    const containerId = groupName === "difficulty" ? "difficulty-group" : "attempts-group";
+    const map = {
+        difficulty: "difficulty-group",
+        attempts: "attempts-group",
+        timer: "timer-group"
+    };
+    const containerId = map[groupName];
     document.querySelectorAll("#" + containerId + " .seg-btn").forEach(function(b) {
         b.classList.remove("active");
     });
@@ -95,9 +110,86 @@ function selectOption(groupName, val, btnEl) {
 
     if (groupName === "difficulty") {
         selectedDifficulty = val;
-    } else {
+    } else if (groupName === "attempts") {
         selectedMaxAttempts = parseInt(val, 10);
+    } else if (groupName === "timer") {
+        selectedTimerSeconds = parseInt(val, 10);
     }
+}
+
+function stopTimer() {
+    if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+    }
+}
+
+function startCountdown(seconds) {
+    stopTimer();
+    const badge = document.getElementById("timer-badge");
+    if (!seconds || seconds <= 0) {
+        badge.classList.add("hidden");
+        return;
+    }
+
+    timeRemaining = seconds * 10;
+    badge.classList.remove("hidden", "urgent");
+    badge.innerText = seconds.toFixed(1) + "s";
+
+    timerInterval = setInterval(async function() {
+        if (gameOver) {
+            stopTimer();
+            return;
+        }
+        timeRemaining -= 1;
+        const secs = Math.max(0, timeRemaining / 10);
+        badge.innerText = secs.toFixed(1) + "s";
+
+        if (secs <= 5.0) {
+            badge.classList.add("urgent");
+            if (timeRemaining % 10 === 0 && timeRemaining > 0) {
+                playTone(880, 0.04, "sine", 0.04);
+            }
+        }
+
+        if (timeRemaining <= 0) {
+            stopTimer();
+            await handleTimeExpired();
+        }
+    }, 100);
+}
+
+async function handleTimeExpired() {
+    if (gameOver) return;
+    gameOver = true;
+    setKeypadDisabled(true);
+    setLockStatus("TIME EXPIRED", "danger");
+
+    winStreak = 0;
+    localStorage.setItem("pinCrackerStreak", "0");
+    updateStatsDisplay();
+    playLoseSound();
+
+    const res = await fetch("/timeout", { method: "POST" });
+    const data = await res.json();
+
+    const screen = document.getElementById("screen");
+    screen.classList.add("locked");
+    screen.innerText = "CODE: " + data.secret;
+
+    const log = document.getElementById("log");
+    const entry = document.createElement("div");
+    entry.className = "log-entry lose";
+    const statusText = document.createElement("span");
+    statusText.innerText = "TIME EXPIRED // LOCKED OUT";
+    entry.appendChild(statusText);
+
+    const timeoutActions = document.createElement("div");
+    timeoutActions.className = "action-group";
+    timeoutActions.appendChild(buildResetButton("RETRY"));
+    timeoutActions.appendChild(buildMenuButton());
+    entry.appendChild(timeoutActions);
+    log.prepend(entry);
 }
 
 function updateStatsDisplay() {
@@ -106,12 +198,14 @@ function updateStatsDisplay() {
     const statBest = document.getElementById("stat-best");
     const statCracked = document.getElementById("stat-cracked");
     const statMode = document.getElementById("stat-mode");
+    const hudTitle = document.getElementById("hud-mode-title");
 
     if (startStreak) startStreak.innerText = "STREAK: " + winStreak;
     if (gameStreak) gameStreak.innerText = "STREAK " + winStreak;
     if (statBest) statBest.innerText = String(bestStreak);
     if (statCracked) statCracked.innerText = String(totalCracked);
-    if (statMode) statMode.innerText = pinLength + "-DIGIT";
+    if (statMode) statMode.innerText = isDailyMode ? "DAILY (4-DIGIT)" : (pinLength + "-DIGIT");
+    if (hudTitle) hudTitle.innerText = isDailyMode ? "DAILY_VAULT" : "PIN_CRACKER";
 }
 
 function toggleSound() {
@@ -129,7 +223,8 @@ function closeRules() {
     document.getElementById("rules-modal").classList.add("hidden");
 }
 
-async function startGame() {
+async function startGame(daily) {
+    isDailyMode = Boolean(daily);
     playTone(620, 0.1, "triangle", 0.07);
     document.getElementById("start-screen").classList.add("hidden");
     document.getElementById("game-screen").classList.remove("hidden");
@@ -138,13 +233,13 @@ async function startGame() {
 
 function backToMenu() {
     playTone(330, 0.08, "sine", 0.06);
+    stopTimer();
     gameOver = false;
     isSubmitting = false;
     current = "";
     document.getElementById("game-screen").classList.add("hidden");
     document.getElementById("start-screen").classList.remove("hidden");
 }
-
 function updateScreen() {
     const screen = document.getElementById("screen");
     screen.classList.remove("locked");
@@ -159,13 +254,17 @@ function setLockStatus(text, stateClass) {
 
 function updateAttemptsDisplay(used, max) {
     const el = document.getElementById("attempts-display");
+    const decryptBtn = document.getElementById("decrypt-btn");
+
     if (max === 0) {
         el.innerText = "∞ (USED: " + used + ")";
         el.classList.remove("danger");
+        if (decryptBtn) decryptBtn.disabled = gameOver || decryptUsed;
     } else {
         const left = Math.max(0, max - used);
         el.innerText = left + " / " + max;
         el.classList.toggle("danger", left <= 2);
+        if (decryptBtn) decryptBtn.disabled = gameOver || decryptUsed || left <= 1;
     }
 }
 
@@ -173,6 +272,8 @@ function setKeypadDisabled(disabled) {
     document.querySelectorAll("#keypad button").forEach(function(btn) {
         btn.disabled = disabled;
     });
+    const decryptBtn = document.getElementById("decrypt-btn");
+    if (decryptBtn && disabled) decryptBtn.disabled = true;
 }
 
 function press(num) {
@@ -208,9 +309,77 @@ function buildResetButton(label) {
     btn.type = "button";
     btn.className = "reset-btn";
     btn.innerText = label;
-    btn.onmouseenter = playHover;
     btn.onclick = resetGame;
     return btn;
+}
+
+function buildMenuButton() {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "menu-inline-btn";
+    btn.innerText = "SETTINGS";
+    btn.onclick = backToMenu;
+    return btn;
+}
+
+function buildShareButton(attemptsUsed, maxTries, won) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "share-btn";
+    btn.innerText = "SHARE";
+    btn.onclick = function() {
+        const header = isDailyMode
+            ? "PIN CRACKER // Daily Vault (" + dailyDateStr + ")"
+            : "PIN CRACKER (" + pinLength + "-Digit)";
+        const score = won ? (attemptsUsed + "/" + (maxTries || "∞")) : "X/" + (maxTries || "∞");
+        const rows = guessHistory.map(function(statuses) {
+            return statuses.map(function(s) {
+                if (s === "correct") return "🟩";
+                if (s === "present") return "🟨";
+                return "⬛";
+            }).join("");
+        }).join("\n");
+        const text = header + " — " + score + "\n" + rows;
+        navigator.clipboard.writeText(text);
+        btn.innerText = "COPIED!";
+        playTone(720, 0.08, "sine", 0.06);
+        setTimeout(function() { btn.innerText = "SHARE"; }, 1800);
+    };
+    return btn;
+}
+
+async function buyClue() {
+    if (gameOver || isSubmitting || decryptUsed) return;
+    isSubmitting = true;
+    try {
+        const res = await fetch("/decrypt", { method: "POST" });
+        const data = await res.json();
+        if (data.error) {
+            playTone(200, 0.12, "sawtooth", 0.05);
+            return;
+        }
+        decryptUsed = true;
+        const decryptBtn = document.getElementById("decrypt-btn");
+        if (decryptBtn) {
+            decryptBtn.disabled = true;
+            decryptBtn.innerText = "DECRYPT USED (1/1)";
+        }
+
+        playTone(740, 0.12, "triangle", 0.07);
+        updateAttemptsDisplay(data.attempts, data.max_attempts);
+
+        const cell = document.getElementById("matrix-digit-" + data.digit);
+        if (cell) cell.className = "matrix-cell correct";
+        digitStates[data.digit] = "correct";
+
+        const hintsList = document.getElementById("hints-list");
+        const li = document.createElement("li");
+        li.className = "decrypted-clue";
+        li.innerText = data.clue;
+        hintsList.appendChild(li);
+    } finally {
+        isSubmitting = false;
+    }
 }
 
 async function submitGuess() {
@@ -229,6 +398,7 @@ async function submitGuess() {
         const data = await res.json();
         if (data.error) return;
 
+        guessHistory.push(data.statuses);
         updateAttemptsDisplay(data.attempts, data.max_attempts);
         updateDigitMatrix(guess, data.statuses);
 
@@ -241,6 +411,7 @@ async function submitGuess() {
 
         if (data.won) {
             gameOver = true;
+            stopTimer();
             setKeypadDisabled(true);
             setLockStatus("BREACHED", "status-unlocked");
 
@@ -256,9 +427,16 @@ async function submitGuess() {
             entry.classList.add("win");
             statusText.innerText = "ACCESS GRANTED (" + data.attempts + ")";
             entry.appendChild(statusText);
-            entry.appendChild(buildResetButton("NEXT VAULT"));
+
+            const winActions = document.createElement("div");
+            winActions.className = "action-group";
+            winActions.appendChild(buildShareButton(data.attempts, data.max_attempts, true));
+            winActions.appendChild(buildResetButton("NEXT VAULT"));
+            winActions.appendChild(buildMenuButton());
+            entry.appendChild(winActions);
         } else if (data.lost) {
             gameOver = true;
+            stopTimer();
             setKeypadDisabled(true);
             setLockStatus("ALARM TRIGGERED", "danger");
 
@@ -273,7 +451,13 @@ async function submitGuess() {
             entry.classList.add("lose");
             statusText.innerText = "LOCKED OUT";
             entry.appendChild(statusText);
-            entry.appendChild(buildResetButton("RETRY"));
+
+            const loseActions = document.createElement("div");
+            loseActions.className = "action-group";
+            loseActions.appendChild(buildShareButton(data.attempts, data.max_attempts, false));
+            loseActions.appendChild(buildResetButton("RETRY"));
+            loseActions.appendChild(buildMenuButton());
+            entry.appendChild(loseActions);
         } else {
             playTone(390, 0.08, "triangle", 0.06);
             statusText.innerText = data.exact + " VERIFIED // " + data.misplaced + " SHIFTED";
@@ -288,10 +472,13 @@ async function submitGuess() {
 
 async function resetGame() {
     isSubmitting = false;
+    decryptUsed = false;
+    stopTimer();
     const res = await fetch("/reset", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+            daily: isDailyMode,
             difficulty: selectedDifficulty,
             max_attempts: selectedMaxAttempts
         })
@@ -300,8 +487,16 @@ async function resetGame() {
 
     pinLength = data.length;
     maxAttempts = data.max_attempts;
+    dailyDateStr = data.daily_date || "";
+    guessHistory = [];
     gameOver = false;
     current = "";
+
+    const decryptBtn = document.getElementById("decrypt-btn");
+    if (decryptBtn) {
+        decryptBtn.disabled = false;
+        decryptBtn.innerText = "EMERGENCY DECRYPT (-1 TRY)";
+    }
 
     setKeypadDisabled(false);
     setLockStatus("LOCKED", "status-locked");
@@ -318,6 +513,13 @@ async function resetGame() {
         hintsList.appendChild(li);
     });
     document.getElementById("log").innerHTML = "";
+
+        if (isDailyMode) {
+        startCountdown(0);
+    } else {
+        startCountdown(selectedTimerSeconds);
+    }
+
 }
 
 document.addEventListener("keydown", function(e) {

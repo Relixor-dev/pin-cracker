@@ -17,7 +17,7 @@
     <div class="terminal-card">
         <div class="card-topbar">
             <span class="status-dot"></span>
-            <span class="sys-label">VAULT_OS v2.5 // ENCRYPTED</span>
+            <span class="sys-label">VAULT_OS v3.1 // ENCRYPTED</span>
             <span class="streak-tag" id="start-streak">STREAK: 0</span>
         </div>
 
@@ -49,8 +49,19 @@
             </div>
         </div>
 
+        <div class="config-section">
+            <div class="config-label">SPEEDRUN TIMER</div>
+            <div class="segmented-group" id="timer-group">
+                <button type="button" class="seg-btn active" data-value="0" onclick="selectOption('timer', '0', this)">OFF</button>
+                <button type="button" class="seg-btn" data-value="15" onclick="selectOption('timer', '15', this)">15s</button>
+                <button type="button" class="seg-btn" data-value="30" onclick="selectOption('timer', '30', this)">30s</button>
+                <button type="button" class="seg-btn" data-value="45" onclick="selectOption('timer', '45', this)">45s</button>
+            </div>
+        </div>
+
         <div class="start-actions">
-            <button type="button" class="launch-btn" onclick="startGame()">INITIATE BREACH &rarr;</button>
+            <button type="button" class="launch-btn" onclick="startGame(false)">INITIATE BREACH &rarr;</button>
+            <button type="button" class="daily-btn" onclick="startGame(true)">DAILY VAULT CHALLENGE</button>
             <button type="button" class="secondary-btn" onclick="openRules()">PROTOCOL / RULES</button>
         </div>
     </div>
@@ -62,7 +73,7 @@
             <h2>// BREACH PROTOCOL</h2>
             <button type="button" class="close-modal" onclick="closeRules()">&times;</button>
         </div>
-        <p class="modal-desc">Use the intercepted math clues on the terminal display to narrow down the PIN digits, then test combinations on the keypad.</p>
+        <p class="modal-desc">Use the intercepted math clues to narrow down the PIN digits. Stuck? Use <strong>EMERGENCY DECRYPT</strong> once per round to sacrifice 1 attempt and reveal an exact digit.</p>
         <div class="example-row">
             <span class="tile correct">7</span>
             <span><strong>VERIFIED:</strong> Correct digit in the exact slot.</span>
@@ -77,17 +88,17 @@
         </div>
     </div>
 </div>
-
 <div class="game-container hidden" id="game-screen">
     <div class="hud-bar">
         <div class="hud-left">
             <span class="status-dot pulse"></span>
-            <span class="hud-title">PIN_CRACKER</span>
+            <span class="hud-title" id="hud-mode-title">PIN_CRACKER</span>
         </div>
         <div class="hud-right">
+            <span class="timer-badge hidden" id="timer-badge">30.0s</span>
             <span class="hud-badge" id="game-streak">STREAK 0</span>
             <button type="button" class="hud-btn" id="sound-btn" onclick="toggleSound()">SFX: ON</button>
-            <button type="button" class="hud-btn" onclick="backToMenu()">ABORT</button>
+            <button type="button" class="hud-btn" onclick="backToMenu()">SETTINGS / MENU</button>
         </div>
     </div>
 
@@ -149,7 +160,10 @@
         </main>
 
         <aside class="side-panel">
-            <div class="side-title">// BREACH STATS</div>
+            <div class="side-title">// BREACH TOOLS &amp; STATS</div>
+            <button type="button" class="decrypt-btn" id="decrypt-btn" onmouseenter="playHover()" onclick="buyClue()">
+                EMERGENCY DECRYPT (-1 TRY)
+            </button>
             <div class="stat-row">
                 <span>SECURITY LEVEL</span>
                 <strong id="stat-mode">4-DIGIT</strong>
@@ -163,10 +177,11 @@
                 <strong id="stat-cracked">0</strong>
             </div>
             <div class="stat-row">
-                <span>INPUT SHORTCUTS</span>
+                <span>SHORTCUTS</span>
                 <strong>0-9 / BKSP / ENT</strong>
             </div>
             <button type="button" class="side-reset-btn" onmouseenter="playHover()" onclick="resetGame()">NEW TARGET PIN</button>
+            <button type="button" class="side-mode-btn" onmouseenter="playHover()" onclick="backToMenu()">CHANGE MODE / SETTINGS</button>
         </aside>
     </div>
 </div>
