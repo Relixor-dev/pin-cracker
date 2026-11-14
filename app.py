@@ -36,15 +36,20 @@ def generate_hints(code):
         else:
             possible_hints.append(f"Digit #{pos} is less than 5.")
 
+    first_digit = digits
+    last_digit = digits[-1]
+
     possible_hints.append(f"The sum of all {length} digits is {sum(digits)}.")
-    possible_hints.append(f"Digit #1 + Digit #{length} equals {digits[0] + digits[-1]}.")
+    possible_hints.append(f"Digit #1 + Digit #{length} equals {first_digit + last_digit}.")
 
     if length >= 3:
-        possible_hints.append(f"Digit #2 + Digit #3 equals {digits[1] + digits[2]}.")
+        second_digit = digits
+        third_digit = digits
+        possible_hints.append(f"Digit #2 + Digit #3 equals {second_digit + third_digit}.")
 
-    if digits[0] > digits[-1]:
+    if first_digit > last_digit:
         possible_hints.append(f"Digit #1 is larger than Digit #{length}.")
-    elif digits[0] < digits[-1]:
+    elif first_digit < last_digit:
         possible_hints.append(f"Digit #1 is smaller than Digit #{length}.")
     else:
         possible_hints.append(f"Digit #1 and Digit #{length} are the same.")
@@ -140,4 +145,4 @@ def reset():
     })
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=True)

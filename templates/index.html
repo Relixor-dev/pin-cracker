@@ -8,13 +8,26 @@
 </head>
 <body>
 
-<h1>PIN CRACKER</h1>
+<div class="start-screen" id="start-screen">
+    <div class="logo-grid">
+        <div class="logo-tile"></div>
+        <div class="logo-tile yellow"></div>
+        <div class="logo-tile"></div>
+        <div class="logo-tile green"></div>
+        <div class="logo-tile"></div>
+        <div class="logo-tile green"></div>
+        <div class="logo-tile yellow"></div>
+        <div class="logo-tile green"></div>
+        <div class="logo-tile"></div>
+    </div>
 
-<div class="calculator">
-    <div class="controls-bar">
+    <h1 class="start-title">PIN Cracker</h1>
+    <p class="start-subtitle">Use the intercepted math clues to crack the secret code before you get locked out.</p>
+
+    <div class="start-settings">
         <div class="control-group">
             <label for="difficulty">Difficulty</label>
-            <select id="difficulty" onchange="resetGame()">
+            <select id="difficulty">
                 <option value="easy">Easy (3 Digits)</option>
                 <option value="normal" selected>Normal (4 Digits)</option>
                 <option value="hard">Hard (5 Digits)</option>
@@ -22,7 +35,7 @@
         </div>
         <div class="control-group">
             <label for="max-attempts">Attempts</label>
-            <select id="max-attempts" onchange="resetGame()">
+            <select id="max-attempts">
                 <option value="5">5 Tries</option>
                 <option value="8" selected>8 Tries</option>
                 <option value="10">10 Tries</option>
@@ -31,39 +44,81 @@
         </div>
     </div>
 
-    <div class="status-bar">
-        <span>Remaining Tries:</span>
-        <span class="attempts-badge" id="attempts-display">8 / 8</span>
+    <div class="start-buttons">
+        <button class="pill-btn primary" onclick="startGame()">Play</button>
+        <button class="pill-btn secondary" onclick="openRules()">How to Play</button>
     </div>
 
-    <div class="hints-box">
-        <div class="hints-title">Intercepted Clues</div>
-        <ul class="hints-list" id="hints-list">
-            {% for hint in hints %}
-            <li>{{ hint }}</li>
-            {% endfor %}
-        </ul>
-    </div>
+    <div class="streak-pill" id="start-streak">Current Win Streak: 0</div>
+</div>
 
-    <div class="screen" id="screen" data-length="{{ length }}">____</div>
-
-    <div class="keypad" id="keypad">
-        <button onclick="press('1')">1</button>
-        <button onclick="press('2')">2</button>
-        <button onclick="press('3')">3</button>
-        <button onclick="press('4')">4</button>
-        <button onclick="press('5')">5</button>
-        <button onclick="press('6')">6</button>
-        <button onclick="press('7')">7</button>
-        <button onclick="press('8')">8</button>
-        <button onclick="press('9')">9</button>
-        <button class="btn-clear" onclick="clearScreen()">C</button>
-        <button onclick="press('0')">0</button>
-        <button class="btn-enter" onclick="submitGuess()">=</button>
+<div class="modal-overlay hidden" id="rules-modal" onclick="closeRules()">
+    <div class="modal-card" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h2>HOW TO PLAY</h2>
+            <button class="close-modal" onclick="closeRules()">&times;</button>
+        </div>
+        <p>Crack the hidden numeric PIN using the clues at the top of the keypad.</p>
+        <div class="example-row">
+            <span class="tile correct">7</span>
+            <span><strong>Green:</strong> Right digit in the exact right spot.</span>
+        </div>
+        <div class="example-row">
+            <span class="tile present">3</span>
+            <span><strong>Yellow:</strong> Right digit, but in the wrong spot.</span>
+        </div>
+        <div class="example-row">
+            <span class="tile absent">9</span>
+            <span><strong>Gray:</strong> Digit is not in the PIN at all.</span>
+        </div>
     </div>
 </div>
 
-<div class="log" id="log"></div>
+<div class="game-container hidden" id="game-screen">
+    <div class="top-nav">
+        <h1>PIN Cracker</h1>
+        <div class="nav-actions">
+            <button class="icon-btn" id="game-streak">Streak: 0</button>
+            <button class="icon-btn" id="sound-btn" onclick="toggleSound()">Sound: ON</button>
+            <button class="icon-btn" onclick="backToMenu()">Menu</button>
+        </div>
+    </div>
+
+    <div class="calculator">
+        <div class="status-bar">
+            <span>Remaining Tries:</span>
+            <span class="attempts-badge" id="attempts-display">8 / 8</span>
+        </div>
+
+        <div class="hints-box">
+            <div class="hints-title">Intercepted Clues</div>
+            <ul class="hints-list" id="hints-list">
+                {% for hint in hints %}
+                <li>{{ hint }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <div class="screen" id="screen" data-length="{{ length }}">____</div>
+
+        <div class="keypad" id="keypad">
+            <button onclick="press('1')">1</button>
+            <button onclick="press('2')">2</button>
+            <button onclick="press('3')">3</button>
+            <button onclick="press('4')">4</button>
+            <button onclick="press('5')">5</button>
+            <button onclick="press('6')">6</button>
+            <button onclick="press('7')">7</button>
+            <button onclick="press('8')">8</button>
+            <button onclick="press('9')">9</button>
+            <button class="btn-clear" onclick="clearScreen()">C</button>
+            <button onclick="press('0')">0</button>
+            <button class="btn-enter" onclick="submitGuess()">=</button>
+        </div>
+    </div>
+
+    <div class="log" id="log"></div>
+</div>
 
 <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>

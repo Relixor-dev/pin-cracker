@@ -2,12 +2,78 @@ let current = "";
 let pinLength = 4;
 let maxAttempts = 8;
 let gameOver = false;
+let soundEnabled = true;
+let winStreak = parseInt(localStorage.getItem("pinCrackerStreak") || "0", 10);
+
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+function playTone(freq, duration, type) {
+    if (!soundEnabled) return;
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type || "sine";
+    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + duration);
+}
+
+function playWinSound() {
+    playTone(523.25, 0.12, "triangle");
+    setTimeout(function() { playTone(659.25, 0.12, "triangle"); }, 110);
+    setTimeout(function() { playTone(783.99, 0.25, "triangle"); }, 220);
+}
+
+function playLoseSound() {
+    playTone(220, 0.2, "sawtooth");
+    setTimeout(function() { playTone(165, 0.35, "sawtooth"); }, 180);
+}
 
 window.addEventListener("DOMContentLoaded", function() {
     const screenEl = document.getElementById("screen");
     pinLength = parseInt(screenEl.dataset.length, 10) || 4;
+    updateStreakDisplay();
     updateScreen();
 });
+
+function updateStreakDisplay() {
+    const startStreak = document.getElementById("start-streak");
+    const gameStreak = document.getElementById("game-streak");
+    if (startStreak) startStreak.innerText = "Current Win Streak: " + winStreak;
+    if (gameStreak) gameStreak.innerText = "Streak: " + winStreak;
+}
+
+function toggleSound() {
+    soundEnabled = !soundEnabled;
+    const btn = document.getElementById("sound-btn");
+    btn.innerText = soundEnabled ? "Sound: ON" : "Sound: OFF";
+    if (soundEnabled) playTone(520, 0.08, "sine");
+}
+
+function openRules() {
+    document.getElementById("rules-modal").classList.remove("hidden");
+}
+
+function closeRules() {
+    document.getElementById("rules-modal").classList.add("hidden");
+}
+
+async function startGame() {
+    playTone(440, 0.09, "sine");
+    document.getElementById("start-screen").classList.add("hidden");
+    document.getElementById("game-screen").classList.remove("hidden");
+    await resetGame();
+}
+
+function backToMenu() {
+    playTone(330, 0.08, "sine");
+    document.getElementById("game-screen").classList.add("hidden");
+    document.getElementById("start-screen").classList.remove("hidden");
+}
 
 function updateScreen() {
     const screen = document.getElementById("screen");
@@ -36,6 +102,7 @@ function setKeypadDisabled(disabled) {
 function press(num) {
     if (gameOver) return;
     if (current.length < pinLength) {
+        playTone(480 + parseInt(num, 10) * 25, 0.06, "sine");
         current += num;
         updateScreen();
     }
@@ -43,6 +110,7 @@ function press(num) {
 
 function clearScreen() {
     if (gameOver) return;
+    playTone(260, 0.08, "sine");
     current = "";
     updateScreen();
 }
@@ -70,7 +138,8 @@ function buildResetButton(label) {
 async function submitGuess() {
     if (gameOver || current.length !== pinLength) return;
     const guess = current;
-    clearScreen();
+    current = "";
+    updateScreen();
 
     const res = await fetch("/guess", {
         method: "POST",
@@ -92,6 +161,11 @@ async function submitGuess() {
     if (data.won) {
         gameOver = true;
         setKeypadDisabled(true);
+        winStreak += 1;
+        localStorage.setItem("pinCrackerStreak", String(winStreak));
+        updateStreakDisplay();
+        playWinSound();
+
         entry.classList.add("win");
         statusText.innerText = "UNLOCKED in " + data.attempts + "!";
         entry.appendChild(statusText);
@@ -99,6 +173,11 @@ async function submitGuess() {
     } else if (data.lost) {
         gameOver = true;
         setKeypadDisabled(true);
+        winStreak = 0;
+        localStorage.setItem("pinCrackerStreak", "0");
+        updateStreakDisplay();
+        playLoseSound();
+
         const screen = document.getElementById("screen");
         screen.classList.add("locked");
         screen.innerText = "PIN: " + data.secret;
@@ -107,6 +186,7 @@ async function submitGuess() {
         entry.appendChild(statusText);
         entry.appendChild(buildResetButton("Try Again"));
     } else {
+        playTone(390, 0.08, "triangle");
         statusText.innerText = data.exact + " exact, " + data.misplaced + " misplaced";
         entry.appendChild(statusText);
     }
@@ -145,6 +225,7 @@ async function resetGame() {
 }
 
 document.addEventListener("keydown", function(e) {
+    if (document.getElementById("game-screen").classList.contains("hidden")) return;
     if (gameOver) return;
     if (e.key >= "0" && e.key <= "9") press(e.key);
     if (e.key === "Backspace") {
