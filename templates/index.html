@@ -17,7 +17,7 @@
     <div class="terminal-card">
         <div class="card-topbar">
             <span class="status-dot"></span>
-            <span class="sys-label">VAULT_OS v2.4 // ENCRYPTED</span>
+            <span class="sys-label">VAULT_OS v2.5 // ENCRYPTED</span>
             <span class="streak-tag" id="start-streak">STREAK: 0</span>
         </div>
 
@@ -50,8 +50,8 @@
         </div>
 
         <div class="start-actions">
-            <button class="launch-btn" onclick="startGame()">INITIATE BREACH &rarr;</button>
-            <button class="secondary-btn" onclick="openRules()">PROTOCOL / RULES</button>
+            <button type="button" class="launch-btn" onclick="startGame()">INITIATE BREACH &rarr;</button>
+            <button type="button" class="secondary-btn" onclick="openRules()">PROTOCOL / RULES</button>
         </div>
     </div>
 </div>
@@ -60,7 +60,7 @@
     <div class="modal-card" onclick="event.stopPropagation()">
         <div class="modal-header">
             <h2>// BREACH PROTOCOL</h2>
-            <button class="close-modal" onclick="closeRules()">&times;</button>
+            <button type="button" class="close-modal" onclick="closeRules()">&times;</button>
         </div>
         <p class="modal-desc">Use the intercepted math clues on the terminal display to narrow down the PIN digits, then test combinations on the keypad.</p>
         <div class="example-row">
@@ -86,53 +86,89 @@
         </div>
         <div class="hud-right">
             <span class="hud-badge" id="game-streak">STREAK 0</span>
-            <button class="hud-btn" id="sound-btn" onclick="toggleSound()">SFX: ON</button>
-            <button class="hud-btn" onclick="backToMenu()">ABORT</button>
+            <button type="button" class="hud-btn" id="sound-btn" onclick="toggleSound()">SFX: ON</button>
+            <button type="button" class="hud-btn" onclick="backToMenu()">ABORT</button>
         </div>
     </div>
 
-    <div class="calculator">
-        <div class="telemetry-header">
-            <div class="telemetry-item">
-                <span class="tele-label">SYSTEM STATUS</span>
-                <span class="tele-val status-locked" id="lock-status">LOCKED</span>
+    <div class="workspace-grid">
+        <aside class="side-panel">
+            <div class="side-title">// DIGIT MATRIX</div>
+            <p class="side-desc">Auto-tracks tested numbers across guesses.</p>
+            <div class="matrix-grid" id="digit-matrix"></div>
+            <div class="matrix-legend">
+                <span><i class="dot green"></i>Verified</span>
+                <span><i class="dot amber"></i>Shifted</span>
+                <span><i class="dot muted"></i>Ruled Out</span>
             </div>
-            <div class="telemetry-item right">
-                <span class="tele-label">ATTEMPTS LEFT</span>
-                <span class="tele-val" id="attempts-display">8 / 8</span>
+        </aside>
+
+        <main class="center-column">
+            <div class="calculator">
+                <div class="telemetry-header">
+                    <div class="telemetry-item">
+                        <span class="tele-label">SYSTEM STATUS</span>
+                        <span class="tele-val status-locked" id="lock-status">LOCKED</span>
+                    </div>
+                    <div class="telemetry-item right">
+                        <span class="tele-label">ATTEMPTS LEFT</span>
+                        <span class="tele-val" id="attempts-display">8 / 8</span>
+                    </div>
+                </div>
+
+                <div class="hints-box">
+                    <div class="hints-title">// INTERCEPTED TELEMETRY</div>
+                    <ul class="hints-list" id="hints-list">
+                        {% for hint in hints %}
+                        <li>{{ hint }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+
+                <div class="screen-housing">
+                    <div class="screen" id="screen" data-length="{{ length }}">____</div>
+                </div>
+
+                <div class="keypad" id="keypad">
+                    <button type="button" onmouseenter="playHover()" onclick="press('1')">1</button>
+                    <button type="button" onmouseenter="playHover()" onclick="press('2')">2</button>
+                    <button type="button" onmouseenter="playHover()" onclick="press('3')">3</button>
+                    <button type="button" onmouseenter="playHover()" onclick="press('4')">4</button>
+                    <button type="button" onmouseenter="playHover()" onclick="press('5')">5</button>
+                    <button type="button" onmouseenter="playHover()" onclick="press('6')">6</button>
+                    <button type="button" onmouseenter="playHover()" onclick="press('7')">7</button>
+                    <button type="button" onmouseenter="playHover()" onclick="press('8')">8</button>
+                    <button type="button" onmouseenter="playHover()" onclick="press('9')">9</button>
+                    <button type="button" class="btn-clear" onmouseenter="playHover()" onclick="clearScreen()">CLR</button>
+                    <button type="button" onmouseenter="playHover()" onclick="press('0')">0</button>
+                    <button type="button" class="btn-enter" onmouseenter="playHover()" onclick="submitGuess()">ENT</button>
+                </div>
             </div>
-        </div>
 
-        <div class="hints-box">
-            <div class="hints-title">// INTERCEPTED TELEMETRY</div>
-            <ul class="hints-list" id="hints-list">
-                {% for hint in hints %}
-                <li>{{ hint }}</li>
-                {% endfor %}
-            </ul>
-        </div>
+            <div class="log" id="log"></div>
+        </main>
 
-        <div class="screen-housing">
-            <div class="screen" id="screen" data-length="{{ length }}">____</div>
-        </div>
-
-        <div class="keypad" id="keypad">
-            <button onclick="press('1')">1</button>
-            <button onclick="press('2')">2</button>
-            <button onclick="press('3')">3</button>
-            <button onclick="press('4')">4</button>
-            <button onclick="press('5')">5</button>
-            <button onclick="press('6')">6</button>
-            <button onclick="press('7')">7</button>
-            <button onclick="press('8')">8</button>
-            <button onclick="press('9')">9</button>
-            <button class="btn-clear" onclick="clearScreen()">CLR</button>
-            <button onclick="press('0')">0</button>
-            <button class="btn-enter" onclick="submitGuess()">ENT</button>
-        </div>
+        <aside class="side-panel">
+            <div class="side-title">// BREACH STATS</div>
+            <div class="stat-row">
+                <span>SECURITY LEVEL</span>
+                <strong id="stat-mode">4-DIGIT</strong>
+            </div>
+            <div class="stat-row">
+                <span>BEST STREAK</span>
+                <strong id="stat-best">0</strong>
+            </div>
+            <div class="stat-row">
+                <span>VAULTS CRACKED</span>
+                <strong id="stat-cracked">0</strong>
+            </div>
+            <div class="stat-row">
+                <span>INPUT SHORTCUTS</span>
+                <strong>0-9 / BKSP / ENT</strong>
+            </div>
+            <button type="button" class="side-reset-btn" onmouseenter="playHover()" onclick="resetGame()">NEW TARGET PIN</button>
+        </aside>
     </div>
-
-    <div class="log" id="log"></div>
 </div>
 
 <script src="{{ url_for('static', filename='script.js') }}"></script>
