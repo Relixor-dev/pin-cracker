@@ -79,16 +79,13 @@
                 </button>
                 <button type="button" class="mode-card-btn purple" onclick="openCustomModal()">CREATE FRIEND VAULT</button>
             </div>
-            <button type="button" class="secondary-btn" onclick="openRules()">PROTOCOL / RULES</button>
+            <div class="footer-btn-row">
+                <button type="button" class="secondary-btn" onclick="openLeaderboard()">TOP 10 LEADERBOARD</button>
+                <button type="button" class="secondary-btn" onclick="openRules()">PROTOCOL / RULES</button>
+            </div>
         </div>
     </div>
 </div>
-
-<div class="footer-btn-row">
-    <button type="button" class="secondary-btn" onclick="openLeaderboard()">TOP 10 LEADERBOARD</button>
-    <button type="button" class="secondary-btn" onclick="openRules()">PROTOCOL / RULES</button>
-</div>
-
 
 <div class="modal-overlay hidden" id="custom-modal" onclick="closeCustomModal()">
     <div class="modal-card" onclick="event.stopPropagation()">
@@ -136,7 +133,6 @@
         <div class="ranks-list" id="ranks-list"></div>
     </div>
 </div>
-
 <div class="modal-overlay hidden" id="leaderboard-modal" onclick="closeLeaderboard()">
     <div class="modal-card" onclick="event.stopPropagation()">
         <div class="modal-header">
@@ -153,7 +149,6 @@
         </div>
     </div>
 </div>
-
 
 <div class="modal-overlay hidden" id="rules-modal" onclick="closeRules()">
     <div class="modal-card" onclick="event.stopPropagation()">

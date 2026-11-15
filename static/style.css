@@ -1082,11 +1082,22 @@ body {
     color: var(--accent-cyan);
     font-weight: 800;
 }
+
 .footer-btn-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 8px;
+    width: 100%;
 }
+
+.footer-btn-row .secondary-btn {
+    width: 100%;
+    min-width: 0;
+    padding: 11px 6px;
+    font-size: 0.74rem;
+    letter-spacing: 0.5px;
+}
+
 
 .lb-submit-row {
     display: flex;
