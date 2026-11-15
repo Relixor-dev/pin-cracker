@@ -14,6 +14,7 @@ let customPin = "";
 let customNote = "";
 let customClues = 2;
 let dailyDateStr = "";
+let dailySolvesCount = 0;
 let guessHistory = [];
 
 let timerInterval = null;
@@ -32,10 +33,15 @@ let totalXP = parseInt(localStorage.getItem("pinCrackerXP") || "0", 10);
 
 const RANKS = [
     { minXP: 0, title: "SCRIPT KIDDIE" },
-    { minXP: 150, title: "CIPHER SCOUT" },
-    { minXP: 400, title: "GRID INFILTRATOR" },
-    { minXP: 850, title: "VAULT PHANTOM" },
-    { minXP: 1500, title: "GHOST ROOT" }
+    { minXP: 120, title: "PACKET SNIFFER" },
+    { minXP: 300, title: "CIPHER SCOUT" },
+    { minXP: 600, title: "FIREWALL BREAKER" },
+    { minXP: 1050, title: "GRID INFILTRATOR" },
+    { minXP: 1700, title: "SHADOW OPERATIVE" },
+    { minXP: 2600, title: "VAULT PHANTOM" },
+    { minXP: 3800, title: "SYSTEM ARCHITECT" },
+    { minXP: 5500, title: "GHOST ROOT" },
+    { minXP: 8000, title: "ZERO-DAY SOVEREIGN" }
 ];
 
 let audioCtx = null;
@@ -71,7 +77,7 @@ function playTone(freq, duration, type, volume) {
             gain.disconnect();
         };
     } catch (e) {
-        // Ignore audio context block before first user click
+        // Ignore before first interaction
     }
 }
 
@@ -110,6 +116,9 @@ function triggerCalcEffect(className) {
 window.addEventListener("DOMContentLoaded", function() {
     const screenEl = document.getElementById("screen");
     pinLength = parseInt(screenEl.dataset.length, 10) || 4;
+    const solvesEl = document.getElementById("stat-daily-solves");
+    if (solvesEl) dailySolvesCount = parseInt(solvesEl.innerText || "0", 10);
+
     buildDigitMatrix();
     updateStatsDisplay();
     updateScreen();
@@ -344,6 +353,8 @@ function updateStatsDisplay() {
     const statMode = document.getElementById("stat-mode");
     const statFirewall = document.getElementById("stat-firewall");
     const hudTitle = document.getElementById("hud-mode-title");
+    const dailyBtn = document.getElementById("daily-start-btn");
+    const dailySolvesEl = document.getElementById("stat-daily-solves");
 
     if (startRank) startRank.innerText = "RANK: " + rankTitle + " (" + totalXP + " XP) ▾";
     if (hudRank) hudRank.innerText = rankTitle;
@@ -352,6 +363,8 @@ function updateStatsDisplay() {
     if (gameStreak) gameStreak.innerText = "STREAK " + winStreak;
     if (statBest) statBest.innerText = String(bestStreak);
     if (statCracked) statCracked.innerText = String(totalCracked);
+    if (dailyBtn) dailyBtn.innerText = "DAILY VAULT (" + dailySolvesCount + " SOLVED)";
+    if (dailySolvesEl) dailySolvesEl.innerText = String(dailySolvesCount);
 
     const fwTags = [];
     if (mutNoRepeat && gameMode !== "daily" && gameMode !== "custom") fwTags.push("NO-REPEAT");
@@ -359,7 +372,7 @@ function updateStatsDisplay() {
     if (statFirewall) statFirewall.innerText = fwTags.length ? fwTags.join(" + ") : "STANDARD";
 
     const modeLabels = {
-        daily: "DAILY VAULT",
+        daily: "DAILY (" + pinLength + "-DIGIT)",
         heist: "HEIST STAGE " + heistStage + "/3",
         progressive: "PROGRESSIVE (" + pinLength + "D)",
         custom: "FRIEND VAULT",
@@ -531,7 +544,7 @@ function buildShareButton(attemptsUsed, maxTries, won) {
     btn.innerText = "SHARE";
     btn.onclick = function() {
         const header = gameMode === "daily"
-            ? "PIN CRACKER // Daily Vault (" + dailyDateStr + ")"
+            ? "PIN CRACKER // Daily Vault (" + dailyDateStr + " - " + pinLength + "D)"
             : "PIN CRACKER [" + gameMode.toUpperCase() + "]";
         const score = won ? (attemptsUsed + "/" + (maxTries || "∞")) : "X/" + (maxTries || "∞");
         const rows = guessHistory.map(function(statuses) {
@@ -631,10 +644,15 @@ async function submitGuess() {
             setLockStatus(isHeistAdvance ? "STAGE CLEARED" : "BREACHED", "status-unlocked");
             triggerCalcEffect("pulse-win");
 
-            let earnedXP = 50 + (pinLength * 15);
-            if (mutNoRepeat) earnedXP += 25;
-            if (mutTimeDrain && selectedTimerSeconds > 0) earnedXP += 35;
-            if (gameMode === "heist" && heistStage === 3) earnedXP += 120;
+            if (typeof data.daily_solves === "number") {
+                dailySolvesCount = data.daily_solves;
+            }
+
+            let earnedXP = 15 + (pinLength * 8);
+            if (mutNoRepeat) earnedXP += 10;
+            if (mutTimeDrain && selectedTimerSeconds > 0) earnedXP += 15;
+            if (gameMode === "daily") earnedXP += 20;
+            if (gameMode === "heist" && heistStage === 3) earnedXP += 45;
 
             if (!isHeistAdvance) {
                 winStreak += 1;
@@ -727,6 +745,9 @@ async function resetGame() {
     pinLength = data.length;
     maxAttempts = data.max_attempts;
     dailyDateStr = data.daily_date || "";
+    if (typeof data.daily_solves === "number") {
+        dailySolvesCount = data.daily_solves;
+    }
     guessHistory = [];
     gameOver = false;
     current = "";

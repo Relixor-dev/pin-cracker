@@ -1,9 +1,13 @@
+import json
+import os
 import random
 from datetime import date
 from flask import Flask, render_template, request, jsonify, session
 
 app = Flask(__name__)
 app.secret_key = "pin-cracker-secret-key"
+
+DAILY_STATS_FILE = "daily_stats.json"
 
 DIFFICULTY_LENGTHS = {
     "easy": 3,
@@ -17,6 +21,33 @@ HEIST_STAGES = [
     {"stage": 2, "length": 4, "attempts": 4, "label": "STAGE 2/3 // LASER GRID"},
     {"stage": 3, "length": 5, "attempts": 3, "label": "STAGE 3/3 // MAIN CORE"}
 ]
+
+def get_daily_solves(today_str):
+    if not os.path.exists(DAILY_STATS_FILE):
+        return 0
+    try:
+        with open(DAILY_STATS_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return int(data.get(today_str, 0))
+    except Exception:
+        return 0
+
+def increment_daily_solves(today_str):
+    data = {}
+    if os.path.exists(DAILY_STATS_FILE):
+        try:
+            with open(DAILY_STATS_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception:
+            data = {}
+    count = int(data.get(today_str, 0)) + 1
+    data[today_str] = count
+    try:
+        with open(DAILY_STATS_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f)
+    except Exception:
+        pass
+    return count
 
 def generate_code(length=4, rng=None, unique_only=False):
     r = rng if rng else random
@@ -102,15 +133,17 @@ def start_new_session(difficulty="normal", max_attempts=8, mode="standard", stag
     progressive = False
     stage_label = ""
     unique_flag = bool(no_repeat)
+    today_str = date.today().isoformat()
+    daily_solves = get_daily_solves(today_str)
 
     if mode == "daily":
-        today_str = date.today().isoformat()
         seeded_rng = random.Random(f"pin-cracker-{today_str}")
-        length = 4
-        max_attempts = 6
+        length = seeded_rng.choice([3, 4, 5, 6])
+        max_attempts = length + 2
         unique_flag = False
         code = generate_code(length, seeded_rng, False)
-        all_hints = generate_hints(code, seeded_rng)
+        total = 3 if length <= 4 else (4 if length == 5 else 5)
+        all_hints = generate_hints(code, seeded_rng, total_count=total)
         session["daily_date"] = today_str
     elif mode == "heist":
         idx = max(0, min(2, int(stage) - 1))
@@ -165,13 +198,16 @@ def start_new_session(difficulty="normal", max_attempts=8, mode="standard", stag
         "heist_stage": int(stage),
         "stage_label": stage_label,
         "daily_date": session.get("daily_date"),
+        "daily_solves": daily_solves,
         "no_repeat": unique_flag
     }
 
 @app.route("/")
 def index():
+    today_str = date.today().isoformat()
+    daily_solves = get_daily_solves(today_str)
     info = start_new_session("normal", 8, "standard")
-    return render_template("index.html", hints=info["hints"], length=info["length"])
+    return render_template("index.html", hints=info["hints"], length=info["length"], daily_solves=daily_solves)
 
 @app.route("/guess", methods=["POST"])
 def guess():
@@ -200,6 +236,11 @@ def guess():
     won = (user_guess == secret)
     lost = (not won and max_attempts > 0 and attempts >= max_attempts)
 
+    daily_solves = None
+    if won and session.get("mode") == "daily":
+        today_str = session.get("daily_date") or date.today().isoformat()
+        daily_solves = increment_daily_solves(today_str)
+
     unlocked_hint = None
     hidden = session.get("hidden_hints", [])
     if not won and not lost and hidden:
@@ -219,6 +260,7 @@ def guess():
         "mode": session.get("mode", "standard"),
         "heist_stage": session.get("heist_stage", 1),
         "daily_date": session.get("daily_date"),
+        "daily_solves": daily_solves,
         "unlocked_hint": unlocked_hint,
         "hidden_count": len(hidden)
     })

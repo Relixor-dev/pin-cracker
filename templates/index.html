@@ -61,10 +61,10 @@
             <div class="config-label">FIREWALL MUTATORS (+XP BONUS)</div>
             <div class="mutator-grid">
                 <button type="button" class="mutator-btn" id="mut-norepeat" onclick="toggleMutator('noRepeat', this)">
-                    NO-REPEAT DIGITS (+25 XP)
+                    NO-REPEAT DIGITS (+10 XP)
                 </button>
                 <button type="button" class="mutator-btn" id="mut-timedrain" onclick="toggleMutator('timeDrain', this)">
-                    TIME DRAIN -2s/MISS (+35 XP)
+                    TIME DRAIN -2s/MISS (+15 XP)
                 </button>
             </div>
         </div>
@@ -74,7 +74,9 @@
             <div class="mode-grid">
                 <button type="button" class="mode-card-btn cyan" onclick="startGame('progressive')">PROGRESSIVE CLUES</button>
                 <button type="button" class="mode-card-btn red" onclick="startGame('heist')">HEIST LADDER (3 STAGES)</button>
-                <button type="button" class="mode-card-btn amber" onclick="startGame('daily')">DAILY VAULT</button>
+                <button type="button" class="mode-card-btn amber" id="daily-start-btn" onclick="startGame('daily')">
+                    DAILY VAULT ({{ daily_solves }} SOLVED)
+                </button>
                 <button type="button" class="mode-card-btn purple" onclick="openCustomModal()">CREATE FRIEND VAULT</button>
             </div>
             <button type="button" class="secondary-btn" onclick="openRules()">PROTOCOL / RULES</button>
@@ -134,7 +136,7 @@
             <h2>// BREACH PROTOCOL</h2>
             <button type="button" class="close-modal" onclick="closeRules()">&times;</button>
         </div>
-        <p class="modal-desc"><strong>No-Repeat Digits:</strong> All PIN digits are unique and duplicate guesses are blocked.<br><strong>Time Drain:</strong> Each invalid digit subtracts 2s in timed runs.<br><strong>Ranks:</strong> Earn XP on every breach to climb clearance levels.</p>
+        <p class="modal-desc"><strong>Duplicate Digits:</strong> Allowed in all modes unless the <em>No-Repeat Digits</em> mutator is active.<br><strong>Daily Vault:</strong> Rotates daily between 3, 4, 5, and 6 digits for everyone.<br><strong>Ranks:</strong> Earn XP on every breach to climb 10 clearance ranks.</p>
         <div class="example-row">
             <span class="tile correct">7</span>
             <span><strong>VERIFIED:</strong> Correct digit in the exact slot.</span>
@@ -234,6 +236,10 @@
             <div class="stat-row">
                 <span>ACTIVE MODE</span>
                 <strong id="stat-mode">4-DIGIT</strong>
+            </div>
+            <div class="stat-row" id="daily-solves-row">
+                <span>DAILY SOLVES</span>
+                <strong id="stat-daily-solves">{{ daily_solves }}</strong>
             </div>
             <div class="stat-row">
                 <span>FIREWALL</span>
