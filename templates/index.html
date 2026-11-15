@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PIN CRACKER // Security Terminal</title>
+    <title>PIN DECIPHERER // Security Terminal</title>
     <link rel="preconnect" href="https://googleapis.com">
     <link rel="preconnect" href="https://gstatic.com" crossorigin>
     <link href="https://googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
@@ -24,7 +24,7 @@
             <span class="streak-tag" id="start-streak">STREAK: 0</span>
         </div>
 
-        <h1 class="start-title">PIN CRACKER</h1>
+        <h1 class="start-title">PIN DECIPHERER</h1>
         <p class="start-subtitle">Analyze intercepted telemetry clues and bypass the keypad lock before security triggers.</p>
 
         <div class="config-section">
@@ -163,6 +163,26 @@
             <div class="xp-bar-fill" id="xp-bar-fill" style="width: 0%;"></div>
         </div>
         <div class="ranks-list" id="ranks-list"></div>
+    </div>
+</div>
+
+<div class="modal-overlay hidden" id="leaderboard-modal" onclick="closeLeaderboard()">
+    <div class="modal-card" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h2>// GLOBAL LEADERBOARDS</h2>
+            <button type="button" class="close-modal" onclick="closeLeaderboard()">&times;</button>
+        </div>
+        <p class="modal-desc" id="lb-desc-text">Click any agent row to inspect their dossier.</p>
+        <div class="segmented-group lb-tabs">
+            <button type="button" class="seg-btn active" id="lb-tab-xp" onclick="switchLeaderboardTab('xp')">CLEARANCE XP</button>
+            <button type="button" class="seg-btn" id="lb-tab-speed" onclick="switchLeaderboardTab('speed')">DAILY SPEEDRUN</button>
+        </div>
+        <div class="config-section" id="lb-xp-submit">
+            <div class="config-label">AGENT CODENAME</div>
+            <input type="text" class="terminal-input" id="agent-handle-input" maxlength="14" placeholder="ANON_AGENT">
+            <button type="button" class="secondary-btn" onclick="postScoreToLeaderboard()">SYNC CLEARANCE XP</button>
+        </div>
+        <div class="ranks-list" id="leaderboard-list"></div>
     </div>
 </div>
 
