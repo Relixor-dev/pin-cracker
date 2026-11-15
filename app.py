@@ -8,7 +8,8 @@ app.secret_key = "pin-cracker-secret-key"
 DIFFICULTY_LENGTHS = {
     "easy": 3,
     "normal": 4,
-    "hard": 5
+    "hard": 5,
+    "extreme": 6
 }
 
 HEIST_STAGES = [
@@ -58,6 +59,11 @@ def generate_hints(code, rng=None, total_count=None):
     possible_hints.append(f"Digit #1 + Digit #{length} equals {first_digit + last_digit}.")
     possible_hints.append(f"Digit #2 + Digit #3 equals {second_digit + third_digit}.")
 
+    if length >= 5:
+        fourth_digit = temp.pop(0)
+        fifth_digit = temp.pop(0)
+        possible_hints.append(f"Digit #4 + Digit #5 equals {fourth_digit + fifth_digit}.")
+
     if first_digit > last_digit:
         possible_hints.append(f"Digit #1 is larger than Digit #{length}.")
     elif first_digit < last_digit:
@@ -70,7 +76,7 @@ def generate_hints(code, rng=None, total_count=None):
     else:
         possible_hints.append("All digits in the PIN are unique.")
 
-    count = total_count if total_count else (3 if length <= 4 else 4)
+    count = total_count if total_count else (3 if length <= 4 else (4 if length == 5 else 5))
     return r.sample(possible_hints, min(count, len(possible_hints)))
 
 def evaluate_guess(secret, guess):
@@ -115,7 +121,7 @@ def start_new_session(difficulty="normal", max_attempts=8, mode="standard", stag
         code = generate_code(length, None, unique_flag)
         all_hints = generate_hints(code)
         session["daily_date"] = None
-    elif mode == "custom" and str(custom_pin).strip().isdigit() and 3 <= len(str(custom_pin).strip()) <= 5:
+    elif mode == "custom" and str(custom_pin).strip().isdigit() and 3 <= len(str(custom_pin).strip()) <= 6:
         code = str(custom_pin).strip()
         length = len(code)
         max_attempts = int(max_attempts) if int(max_attempts) > 0 else 6
@@ -131,7 +137,7 @@ def start_new_session(difficulty="normal", max_attempts=8, mode="standard", stag
         length = DIFFICULTY_LENGTHS.get(difficulty, 4)
         code = generate_code(length, None, unique_flag)
         progressive = (mode == "progressive")
-        total = 5 if progressive else (3 if length <= 4 else 4)
+        total = 6 if progressive else (3 if length <= 4 else (4 if length == 5 else 5))
         all_hints = generate_hints(code, total_count=total)
         session["daily_date"] = None
 

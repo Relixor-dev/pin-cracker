@@ -119,7 +119,7 @@ window.addEventListener("DOMContentLoaded", function() {
     if (sharedCode) {
         try {
             const decoded = JSON.parse(atob(sharedCode));
-            if (decoded.pin && decoded.pin.length >= 3 && decoded.pin.length <= 5) {
+            if (decoded.pin && decoded.pin.length >= 3 && decoded.pin.length <= 6) {
                 customPin = decoded.pin;
                 customNote = decoded.note || "";
                 customClues = (decoded.clues !== undefined) ? parseInt(decoded.clues, 10) : 2;
@@ -241,7 +241,6 @@ function startCountdown(seconds) {
         }
     }, 100);
 }
-
 async function handleTimeExpired() {
     if (gameOver) return;
     gameOver = true;
@@ -275,6 +274,64 @@ async function handleTimeExpired() {
     entry.appendChild(timeoutActions);
     log.prepend(entry);
 }
+
+function openRanksModal() {
+    playTone(620, 0.06, "sine", 0.06);
+    renderRanksModal();
+    document.getElementById("ranks-modal").classList.remove("hidden");
+}
+
+function closeRanksModal() {
+    document.getElementById("ranks-modal").classList.add("hidden");
+}
+
+function renderRanksModal() {
+    const list = document.getElementById("ranks-list");
+    const progressText = document.getElementById("rank-progress-text");
+    const barFill = document.getElementById("xp-bar-fill");
+    if (!list) return;
+
+    const currentTitle = getRankTitle(totalXP);
+    let nextRank = null;
+    let currentFloor = 0;
+
+    RANKS.forEach(function(r) {
+        if (totalXP >= r.minXP) {
+            currentFloor = r.minXP;
+        } else if (!nextRank) {
+            nextRank = r;
+        }
+    });
+
+    if (nextRank) {
+        const span = nextRank.minXP - currentFloor;
+        const pct = Math.min(100, Math.round(((totalXP - currentFloor) / span) * 100));
+        progressText.innerText = totalXP + " XP // " + (nextRank.minXP - totalXP) + " XP TO " + nextRank.title;
+        barFill.style.width = pct + "%";
+    } else {
+        progressText.innerText = totalXP + " XP // MAX CLEARANCE REACHED";
+        barFill.style.width = "100%";
+    }
+
+    list.innerHTML = "";
+    RANKS.forEach(function(r) {
+        const row = document.createElement("div");
+        const isCurrent = (r.title === currentTitle);
+        const isUnlocked = (totalXP >= r.minXP);
+        row.className = "rank-row" + (isCurrent ? " current" : (isUnlocked ? " unlocked" : ""));
+
+        const left = document.createElement("span");
+        left.innerText = (isCurrent ? "▶ " : (isUnlocked ? "✓ " : "🔒 ")) + r.title;
+
+        const right = document.createElement("span");
+        right.innerText = r.minXP + " XP";
+
+        row.appendChild(left);
+        row.appendChild(right);
+        list.appendChild(row);
+    });
+}
+
 function updateStatsDisplay() {
     const rankTitle = getRankTitle(totalXP);
     const startRank = document.getElementById("start-rank");
@@ -288,7 +345,7 @@ function updateStatsDisplay() {
     const statFirewall = document.getElementById("stat-firewall");
     const hudTitle = document.getElementById("hud-mode-title");
 
-    if (startRank) startRank.innerText = "RANK: " + rankTitle + " (" + totalXP + " XP)";
+    if (startRank) startRank.innerText = "RANK: " + rankTitle + " (" + totalXP + " XP) ▾";
     if (hudRank) hudRank.innerText = rankTitle;
     if (statXP) statXP.innerText = totalXP + " XP";
     if (startStreak) startStreak.innerText = "STREAK: " + winStreak;
@@ -311,7 +368,6 @@ function updateStatsDisplay() {
     if (statMode) statMode.innerText = modeLabels[gameMode] || (pinLength + "-DIGIT");
     if (hudTitle) hudTitle.innerText = gameMode === "heist" ? ("HEIST_STAGE_" + heistStage) : (gameMode.toUpperCase() + "_VAULT");
 }
-
 function toggleSound() {
     soundEnabled = !soundEnabled;
     const btn = document.getElementById("sound-btn");
@@ -327,8 +383,8 @@ function closeCustomModal() { document.getElementById("custom-modal").classList.
 function readCustomInputs() {
     const pin = document.getElementById("custom-pin-input").value.trim();
     const note = document.getElementById("custom-note-input").value.trim();
-    if (!/^\d{3,5}$/.test(pin)) {
-        alert("Enter a 3, 4, or 5 digit numeric PIN!");
+    if (!/^\d{3,6}$/.test(pin)) {
+        alert("Enter a 3, 4, 5, or 6 digit numeric PIN!");
         return null;
     }
     return { pin: pin, note: note, clues: customClues };
