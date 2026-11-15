@@ -20,4 +20,4 @@ pip install -r requirements.txt
 python app.py
 ```
 
-Open `http://127.0.0.1:5000` in your browser to play.
+Open `http://127.0.0.1:8080` in your browser to play.

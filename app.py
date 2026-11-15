@@ -2,12 +2,16 @@ import json
 import os
 import random
 from datetime import date
+import requests
 from flask import Flask, render_template, request, jsonify, session
 
 app = Flask(__name__)
 app.secret_key = "pin-cracker-secret-key"
 
 DAILY_STATS_FILE = "daily_stats.json"
+LEADERBOARD_FILE = "leaderboard_local.json"
+UPSTASH_URL = os.environ.get("UPSTASH_REDIS_REST_URL", "").rstrip("/")
+UPSTASH_TOKEN = os.environ.get("UPSTASH_REDIS_REST_TOKEN", "")
 
 DIFFICULTY_LENGTHS = {
     "easy": 3,
@@ -22,7 +26,26 @@ HEIST_STAGES = [
     {"stage": 3, "length": 5, "attempts": 3, "label": "STAGE 3/3 // MAIN CORE"}
 ]
 
+def _redis_cmd(*args):
+    if not UPSTASH_URL or not UPSTASH_TOKEN:
+        return None
+    try:
+        res = requests.post(
+            UPSTASH_URL,
+            headers={"Authorization": f"Bearer {UPSTASH_TOKEN}"},
+            json=[str(a) for a in args],
+            timeout=4
+        )
+        if res.ok:
+            return res.json().get("result")
+    except Exception:
+        return None
+    return None
+
 def get_daily_solves(today_str):
+    remote = _redis_cmd("GET", f"daily_solves:{today_str}")
+    if remote is not None:
+        return int(remote)
     if not os.path.exists(DAILY_STATS_FILE):
         return 0
     try:
@@ -32,55 +55,10 @@ def get_daily_solves(today_str):
     except Exception:
         return 0
 
-LEADERBOARD_FILE = "leaderboard_local.json"
-
-def submit_leaderboard_score(handle, xp):
-    clean_name = "".join(c for c in str(handle) if c.isalnum() or c in "_-").upper()[:14]
-    if not clean_name:
-        clean_name = "ANON_AGENT"
-    score_val = max(0, int(xp))
-
-    res = _redis_cmd("ZADD", "pin_cracker_lb", "GT", score_val, clean_name)
-    if res is not None:
-        return get_leaderboard()
-
-    data = {}
-    if os.path.exists(LEADERBOARD_FILE):
-        try:
-            with open(LEADERBOARD_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception:
-            data = {}
-    if score_val > int(data.get(clean_name, 0)):
-        data[clean_name] = score_val
-        try:
-            with open(LEADERBOARD_FILE, "w", encoding="utf-8") as f:
-                json.dump(data, f)
-        except Exception:
-            pass
-    return get_leaderboard()
-
-def get_leaderboard():
-    raw = _redis_cmd("ZREVRANGE", "pin_cracker_lb", 0, 9, "WITHSCORES")
-    if isinstance(raw, list):
-        entries = []
-        for i in range(0, len(raw), 2):
-            if i + 1 < len(raw):
-                entries.append({"name": raw[i], "xp": int(float(raw[i + 1]))})
-        return entries
-
-    if not os.path.exists(LEADERBOARD_FILE):
-        return []
-    try:
-        with open(LEADERBOARD_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        sorted_items = sorted(data.items(), key=lambda x: x[1], reverse=True)[:10]
-        return [{"name": k, "xp": int(v)} for k, v in sorted_items]
-    except Exception:
-        return []
-
-
 def increment_daily_solves(today_str):
+    remote = _redis_cmd("INCR", f"daily_solves:{today_str}")
+    if remote is not None:
+        return int(remote)
     data = {}
     if os.path.exists(DAILY_STATS_FILE):
         try:
@@ -97,7 +75,24 @@ def increment_daily_solves(today_str):
         pass
     return count
 
-LEADERBOARD_FILE = "leaderboard_local.json"
+def get_leaderboard():
+    raw = _redis_cmd("ZREVRANGE", "pin_cracker_lb", "0", "9", "WITHSCORES")
+    if isinstance(raw, list):
+        entries = []
+        for i in range(0, len(raw), 2):
+            if i + 1 < len(raw):
+                entries.append({"name": str(raw[i]), "xp": int(float(raw[i + 1]))})
+        return entries
+
+    if not os.path.exists(LEADERBOARD_FILE):
+        return []
+    try:
+        with open(LEADERBOARD_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        sorted_items = sorted(data.items(), key=lambda x: int(x), reverse=True)[:10]
+        return [{"name": k, "xp": int(v)} for k, v in sorted_items]
+    except Exception:
+        return []
 
 def submit_leaderboard_score(handle, xp):
     clean_name = "".join(c for c in str(handle) if c.isalnum() or c in "_-").upper()[:14]
@@ -105,7 +100,13 @@ def submit_leaderboard_score(handle, xp):
         clean_name = "ANON_AGENT"
     score_val = max(0, int(xp))
 
-    res = _redis_cmd("ZADD", "pin_cracker_lb", "GT", score_val, clean_name)
+    current_raw = _redis_cmd("ZSCORE", "pin_cracker_lb", clean_name)
+    if current_raw is not None:
+        if score_val > int(float(current_raw)):
+            _redis_cmd("ZADD", "pin_cracker_lb", str(score_val), clean_name)
+        return get_leaderboard()
+
+    res = _redis_cmd("ZADD", "pin_cracker_lb", str(score_val), clean_name)
     if res is not None:
         return get_leaderboard()
 
@@ -124,27 +125,6 @@ def submit_leaderboard_score(handle, xp):
         except Exception:
             pass
     return get_leaderboard()
-
-def get_leaderboard():
-    raw = _redis_cmd("ZREVRANGE", "pin_cracker_lb", 0, 9, "WITHSCORES")
-    if isinstance(raw, list):
-        entries = []
-        for i in range(0, len(raw), 2):
-            if i + 1 < len(raw):
-                entries.append({"name": raw[i], "xp": int(float(raw[i + 1]))})
-        return entries
-
-    if not os.path.exists(LEADERBOARD_FILE):
-        return []
-    try:
-        with open(LEADERBOARD_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        sorted_items = sorted(data.items(), key=lambda x: x[1], reverse=True)[:10]
-        return [{"name": k, "xp": int(v)} for k, v in sorted_items]
-    except Exception:
-        return []
-
-
 def generate_code(length=4, rng=None, unique_only=False):
     r = rng if rng else random
     if unique_only:
@@ -225,6 +205,7 @@ def evaluate_guess(secret, guess):
     exact = statuses.count("correct")
     misplaced = statuses.count("present")
     return statuses, exact, misplaced
+
 def start_new_session(difficulty="normal", max_attempts=8, mode="standard", stage=1, custom_pin="", custom_note="", custom_clues=2, no_repeat=False):
     progressive = False
     stage_label = ""
@@ -297,7 +278,6 @@ def start_new_session(difficulty="normal", max_attempts=8, mode="standard", stag
         "daily_solves": daily_solves,
         "no_repeat": unique_flag
     }
-
 @app.route("/")
 def index():
     today_str = date.today().isoformat()
@@ -398,6 +378,16 @@ def decrypt():
 def timeout():
     return jsonify({"secret": session.get("code", "0000")})
 
+@app.route("/leaderboard", methods=["GET", "POST"])
+def leaderboard():
+    if request.method == "POST":
+        data = request.get_json() or {}
+        name = data.get("name", "ANON_AGENT")
+        xp = data.get("xp", 0)
+        entries = submit_leaderboard_score(name, xp)
+        return jsonify({"entries": entries})
+    return jsonify({"entries": get_leaderboard()})
+
 @app.route("/reset", methods=["POST"])
 def reset():
     data = request.get_json() or {}
@@ -413,16 +403,6 @@ def reset():
     )
     info["status"] = "reset"
     return jsonify(info)
-
-@app.route("/leaderboard", methods=["GET", "POST"])
-def leaderboard():
-    if request.method == "POST":
-        data = request.get_json() or {}
-        name = data.get("name", "ANON_AGENT")
-        xp = data.get("xp", 0)
-        entries = submit_leaderboard_score(name, xp)
-        return jsonify({"entries": entries})
-    return jsonify({"entries": get_leaderboard()})
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080, debug=True, use_reloader=False)
