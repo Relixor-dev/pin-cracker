@@ -1,4 +1,4 @@
-# 🔐 PIN CRACKER // Security Terminal
+# 🔐 PIN DECIPHERER // Security Terminal
 
 A retro-futuristic, vault-cracking deduction game built with **Python (Flask)**, **Vanilla JavaScript**, and **Upstash Redis**. Analyze intercepted mathematical telemetry clues, track ruled-out digits on a live matrix, and bypass the keypad lock before security triggers.
 
