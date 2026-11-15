@@ -89,16 +89,19 @@ def get_leaderboard():
     try:
         with open(LEADERBOARD_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
-        sorted_items = sorted(data.items(), key=lambda x: int(x), reverse=True)[:10]
+        sorted_items = sorted(data.items(), key=lambda x: int(x[1]), reverse=True)[:10]
         return [{"name": k, "xp": int(v)} for k, v in sorted_items]
     except Exception:
         return []
 
-def submit_leaderboard_score(handle, xp):
+def submit_leaderboard_score(handle, xp, profile=None):
     clean_name = "".join(c for c in str(handle) if c.isalnum() or c in "_-").upper()[:14]
     if not clean_name:
         clean_name = "ANON_AGENT"
     score_val = max(0, int(xp))
+
+    if isinstance(profile, dict):
+        _redis_cmd("SET", f"pin_cracker_prof:{clean_name}", json.dumps(profile))
 
     current_raw = _redis_cmd("ZSCORE", "pin_cracker_lb", clean_name)
     if current_raw is not None:
@@ -125,6 +128,26 @@ def submit_leaderboard_score(handle, xp):
         except Exception:
             pass
     return get_leaderboard()
+
+def get_daily_speed_lb(today_str):
+    key = f"pin_cracker_speed:{today_str}"
+    raw = _redis_cmd("ZRANGE", key, "0", "9", "WITHSCORES")
+    if isinstance(raw, list):
+        entries = []
+        for i in range(0, len(raw), 2):
+            if i + 1 < len(raw):
+                entries.append({"name": str(raw[i]), "time": round(float(raw[i + 1]), 1)})
+        return entries
+    return []
+
+def submit_daily_speed(today_str, handle, time_sec):
+    clean_name = "".join(c for c in str(handle) if c.isalnum() or c in "_-").upper()[:14] or "ANON_AGENT"
+    t_val = round(max(0.1, float(time_sec)), 1)
+    key = f"pin_cracker_speed:{today_str}"
+    cur = _redis_cmd("ZSCORE", key, clean_name)
+    if cur is None or t_val < float(cur):
+        _redis_cmd("ZADD", key, str(t_val), clean_name)
+    return get_daily_speed_lb(today_str)
 def generate_code(length=4, rng=None, unique_only=False):
     r = rng if rng else random
     if unique_only:
@@ -221,6 +244,14 @@ def start_new_session(difficulty="normal", max_attempts=8, mode="standard", stag
         code = generate_code(length, seeded_rng, False)
         total = 3 if length <= 4 else (4 if length == 5 else 5)
         all_hints = generate_hints(code, seeded_rng, total_count=total)
+        session["daily_date"] = today_str
+    elif mode == "daily_speed":
+        seeded_rng = random.Random(f"pin-cracker-speedrun-{today_str}")
+        length = 4
+        max_attempts = 8
+        unique_flag = False
+        code = generate_code(length, seeded_rng, False)
+        all_hints = generate_hints(code, seeded_rng, total_count=3)
         session["daily_date"] = today_str
     elif mode == "heist":
         idx = max(0, min(2, int(stage) - 1))
@@ -382,11 +413,33 @@ def timeout():
 def leaderboard():
     if request.method == "POST":
         data = request.get_json() or {}
-        name = data.get("name", "ANON_AGENT")
-        xp = data.get("xp", 0)
-        entries = submit_leaderboard_score(name, xp)
+        entries = submit_leaderboard_score(
+            data.get("name", "ANON_AGENT"),
+            data.get("xp", 0),
+            data.get("profile")
+        )
         return jsonify({"entries": entries})
     return jsonify({"entries": get_leaderboard()})
+
+@app.route("/daily_speed_lb", methods=["GET", "POST"])
+def daily_speed_lb():
+    today_str = date.today().isoformat()
+    if request.method == "POST":
+        data = request.get_json() or {}
+        entries = submit_daily_speed(today_str, data.get("name", "ANON_AGENT"), data.get("time", 999))
+        return jsonify({"entries": entries})
+    return jsonify({"entries": get_daily_speed_lb(today_str)})
+
+@app.route("/profile/<handle>")
+def agent_profile(handle):
+    clean = "".join(c for c in str(handle) if c.isalnum() or c in "_-").upper()[:14]
+    raw = _redis_cmd("GET", f"pin_cracker_prof:{clean}")
+    if raw:
+        try:
+            return jsonify({"found": True, "name": clean, "profile": json.loads(raw)})
+        except Exception:
+            pass
+    return jsonify({"found": False, "name": clean})
 
 @app.route("/reset", methods=["POST"])
 def reset():

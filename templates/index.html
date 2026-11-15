@@ -20,12 +20,33 @@
             <button type="button" class="rank-pill-btn" id="start-rank" onclick="openRanksModal()">
                 RANK: SCRIPT KIDDIE (0 XP) ▾
             </button>
+            <button type="button" class="profile-top-btn" onclick="openMyProfile()">PROFILE</button>
             <span class="streak-tag" id="start-streak">STREAK: 0</span>
         </div>
 
         <h1 class="start-title">PIN CRACKER</h1>
         <p class="start-subtitle">Analyze intercepted telemetry clues and bypass the keypad lock before security triggers.</p>
 
+        <!-- Config sections for Security Level, Attempts, Timer, and Mutators omitted for brevity; see raw code block or reply "next" for continuation -->
+
+        <div class="start-actions">
+            <button type="button" class="launch-btn" onclick="startGame('standard')">INITIATE BREACH &rarr;</button>
+            <div class="mode-grid">
+                <button type="button" class="mode-card-btn cyan" onclick="startGame('progressive')">PROGRESSIVE CLUES</button>
+                <button type="button" class="mode-card-btn red" onclick="startGame('heist')">HEIST LADDER (3 STAGES)</button>
+                <button type="button" class="mode-card-btn amber" id="daily-start-btn" onclick="startGame('daily')">
+                    DAILY VAULT ({{ daily_solves }} SOLVED)
+                </button>
+                <button type="button" class="mode-card-btn green" onclick="startGame('daily_speed')">DAILY SPEEDRUN</button>
+                <button type="button" class="mode-card-btn purple full-span" onclick="openCustomModal()">CREATE FRIEND VAULT</button>
+            </div>
+            <div class="footer-btn-row">
+                <button type="button" class="secondary-btn" onclick="openLeaderboard('xp')">LEADERBOARDS</button>
+                <button type="button" class="secondary-btn" onclick="openRules()">PROTOCOL / RULES</button>
+            </div>
+        </div>
+    </div>
+</div>
         <div class="config-section">
             <div class="config-label">SELECT SECURITY LEVEL</div>
             <div class="segmented-group" id="difficulty-group">
@@ -59,30 +80,42 @@
 
         <div class="config-section">
             <div class="config-label">FIREWALL MUTATORS (+XP BONUS)</div>
-            <div class="mutator-grid">
+            <div class="mutator-grid three-col">
                 <button type="button" class="mutator-btn" id="mut-norepeat" onclick="toggleMutator('noRepeat', this)">
-                    NO-REPEAT DIGITS (+10 XP)
+                    NO-REPEAT (+10 XP)
                 </button>
                 <button type="button" class="mutator-btn" id="mut-timedrain" onclick="toggleMutator('timeDrain', this)">
-                    TIME DRAIN -2s/MISS (+15 XP)
+                    TIME DRAIN (+15 XP)
+                </button>
+                <button type="button" class="mutator-btn" id="mut-virus" onclick="toggleMutator('virusJam', this)">
+                    VIRUS JAM (+20 XP)
                 </button>
             </div>
         </div>
-
-        <div class="start-actions">
-            <button type="button" class="launch-btn" onclick="startGame('standard')">INITIATE BREACH &rarr;</button>
-            <div class="mode-grid">
-                <button type="button" class="mode-card-btn cyan" onclick="startGame('progressive')">PROGRESSIVE CLUES</button>
-                <button type="button" class="mode-card-btn red" onclick="startGame('heist')">HEIST LADDER (3 STAGES)</button>
-                <button type="button" class="mode-card-btn amber" id="daily-start-btn" onclick="startGame('daily')">
-                    DAILY VAULT ({{ daily_solves }} SOLVED)
-                </button>
-                <button type="button" class="mode-card-btn purple" onclick="openCustomModal()">CREATE FRIEND VAULT</button>
+<div class="modal-overlay hidden" id="profile-modal" onclick="closeProfileModal()">
+    <div class="modal-card" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h2>// AGENT DOSSIER</h2>
+            <button type="button" class="close-modal" onclick="closeProfileModal()">&times;</button>
+        </div>
+        <div class="profile-banner">
+            <div>
+                <div class="profile-name" id="prof-name">ANON_AGENT</div>
+                <div class="profile-rank" id="prof-rank">SCRIPT KIDDIE</div>
             </div>
-            <div class="footer-btn-row">
-                <button type="button" class="secondary-btn" onclick="openLeaderboard()">TOP 10 LEADERBOARD</button>
-                <button type="button" class="secondary-btn" onclick="openRules()">PROTOCOL / RULES</button>
-            </div>
+            <div class="profile-xp" id="prof-xp">0 XP</div>
+        </div>
+        <div class="profile-stats-grid">
+            <div class="p-stat"><span>VAULTS CRACKED</span><strong id="prof-cracked">0</strong></div>
+            <div class="p-stat"><span>BEST STREAK</span><strong id="prof-best">0</strong></div>
+            <div class="p-stat"><span>MAX DIFFICULTY</span><strong id="prof-maxdiff">4-DIGIT</strong></div>
+            <div class="p-stat"><span>DAILY BEST</span><strong id="prof-fast">--</strong></div>
+        </div>
+        <div id="prof-unlocks-area">
+            <div class="config-label">UNLOCKABLE TERMINAL THEMES</div>
+            <div class="theme-grid" id="theme-grid"></div>
+            <div class="config-label" style="margin-top: 12px;">ACHIEVEMENT BADGES</div>
+            <div class="badges-grid" id="badges-grid"></div>
         </div>
     </div>
 </div>
@@ -119,7 +152,6 @@
         </div>
     </div>
 </div>
-
 <div class="modal-overlay hidden" id="ranks-modal" onclick="closeRanksModal()">
     <div class="modal-card" onclick="event.stopPropagation()">
         <div class="modal-header">
@@ -133,14 +165,19 @@
         <div class="ranks-list" id="ranks-list"></div>
     </div>
 </div>
+
 <div class="modal-overlay hidden" id="leaderboard-modal" onclick="closeLeaderboard()">
     <div class="modal-card" onclick="event.stopPropagation()">
         <div class="modal-header">
-            <h2>// GLOBAL TOP 10 AGENTS</h2>
+            <h2>// GLOBAL LEADERBOARDS</h2>
             <button type="button" class="close-modal" onclick="closeLeaderboard()">&times;</button>
         </div>
-        <p class="modal-desc">Post your Clearance XP to the global Upstash database.</p>
-        <div class="lb-submit-row">
+        <div class="segmented-group lb-tabs">
+            <button type="button" class="seg-btn active" id="lb-tab-xp" onclick="switchLeaderboardTab('xp')">TOP XP</button>
+            <button type="button" class="seg-btn" id="lb-tab-speed" onclick="switchLeaderboardTab('speed')">DAILY SPEEDRUN</button>
+        </div>
+        <p class="modal-desc" id="lb-desc-text">Click any agent row to inspect their dossier.</p>
+        <div class="lb-submit-row" id="lb-xp-submit">
             <input type="text" id="agent-handle-input" class="terminal-input" maxlength="14" placeholder="AGENT CODENAME">
             <button type="button" class="launch-btn lb-post-btn" onclick="postScoreToLeaderboard()">SYNC XP</button>
         </div>
@@ -156,7 +193,7 @@
             <h2>// BREACH PROTOCOL</h2>
             <button type="button" class="close-modal" onclick="closeRules()">&times;</button>
         </div>
-        <p class="modal-desc"><strong>Duplicate Digits:</strong> Allowed in all modes unless the <em>No-Repeat Digits</em> mutator is active.<br><strong>Daily Vault:</strong> Rotates daily between 3, 4, 5, and 6 digits for everyone.<br><strong>Ranks:</strong> Earn XP on every breach to climb 10 clearance ranks.</p>
+        <p class="modal-desc"><strong>Daily Speedrun:</strong> Race the stopwatch on a separate daily 4-digit PIN.<br><strong>Virus Jam:</strong> Wrong guesses jam one random keypad digit for 1 turn.<br><strong>Slot Pins:</strong> Click any blank slot above the screen to pin suspected digits.</p>
         <div class="example-row">
             <span class="tile correct">7</span>
             <span><strong>VERIFIED:</strong> Correct digit in the exact slot.</span>
@@ -171,13 +208,13 @@
         </div>
     </div>
 </div>
-
 <div class="game-container hidden" id="game-screen">
+    <!-- HUD Bar with status, timer, streak, sound, and menu toggles -->
     <div class="hud-bar">
         <div class="hud-left">
             <span class="status-dot pulse"></span>
             <span class="hud-title" id="hud-mode-title">PIN_CRACKER</span>
-            <button type="button" class="rank-hud-badge" id="hud-rank" onclick="openRanksModal()">SCRIPT KIDDIE</button>
+            <button type="button" class="rank-hud-badge" id="hud-rank" onclick="openMyProfile()">SCRIPT KIDDIE</button>
         </div>
         <div class="hud-right">
             <span class="timer-badge hidden" id="timer-badge">30.0s</span>
@@ -188,6 +225,7 @@
     </div>
 
     <div class="workspace-grid">
+        <!-- Left Panel: Digit Matrix and Scratchpad -->
         <aside class="side-panel">
             <div class="side-title">// DIGIT MATRIX</div>
             <p class="side-desc">Auto-tracks tested numbers across guesses.</p>
@@ -197,8 +235,11 @@
                 <span><i class="dot amber"></i>Shifted</span>
                 <span><i class="dot muted"></i>Ruled Out</span>
             </div>
+            <div class="side-title" style="margin-top: 16px;">// MANUAL SCRATCHPAD</div>
+            <textarea id="agent-notes-box" class="notes-textarea" rows="3" placeholder="Jot down slot logic or suspect digits..."></textarea>
         </aside>
 
+        <!-- Center Column: Calculator, Keypad, and Logs -->
         <main class="center-column">
             <div class="calculator" id="calculator-card">
                 <div class="telemetry-header">
@@ -221,22 +262,18 @@
                     </ul>
                 </div>
 
+                <div class="slot-pins-row" id="slot-pins-row"></div>
+
                 <div class="screen-housing">
                     <div class="screen" id="screen" data-length="{{ length }}">____</div>
                 </div>
 
                 <div class="keypad" id="keypad">
-                    <button type="button" onmouseenter="playHover()" onclick="press('1')">1</button>
-                    <button type="button" onmouseenter="playHover()" onclick="press('2')">2</button>
-                    <button type="button" onmouseenter="playHover()" onclick="press('3')">3</button>
-                    <button type="button" onmouseenter="playHover()" onclick="press('4')">4</button>
-                    <button type="button" onmouseenter="playHover()" onclick="press('5')">5</button>
-                    <button type="button" onmouseenter="playHover()" onclick="press('6')">6</button>
-                    <button type="button" onmouseenter="playHover()" onclick="press('7')">7</button>
-                    <button type="button" onmouseenter="playHover()" onclick="press('8')">8</button>
-                    <button type="button" onmouseenter="playHover()" onclick="press('9')">9</button>
+                    <!-- Numeric and Control Keypad Buttons (0-9, CLR, ENT) -->
+                    {% for i in range(10) %}
+                    <button type="button" id="key-btn-{{ i }}" onmouseenter="playHover()" onclick="press('{{ i }}')">{{ i }}</button>
+                    {% endfor %}
                     <button type="button" class="btn-clear" onmouseenter="playHover()" onclick="clearScreen()">CLR</button>
-                    <button type="button" onmouseenter="playHover()" onclick="press('0')">0</button>
                     <button type="button" class="btn-enter" onmouseenter="playHover()" onclick="submitGuess()">ENT</button>
                 </div>
             </div>
@@ -244,37 +281,21 @@
             <div class="log" id="log"></div>
         </main>
 
+        <!-- Right Panel: Breach Tools and Player Stats -->
         <aside class="side-panel">
             <div class="side-title">// BREACH TOOLS &amp; STATS</div>
             <button type="button" class="decrypt-btn" id="decrypt-btn" onmouseenter="playHover()" onclick="buyClue()">
                 EMERGENCY DECRYPT (-1 TRY)
             </button>
-            <div class="stat-row">
-                <span>CLEARANCE XP</span>
-                <strong id="stat-xp">0 XP</strong>
-            </div>
-            <div class="stat-row">
-                <span>ACTIVE MODE</span>
-                <strong id="stat-mode">4-DIGIT</strong>
-            </div>
-            <div class="stat-row" id="daily-solves-row">
-                <span>DAILY SOLVES</span>
-                <strong id="stat-daily-solves">{{ daily_solves }}</strong>
-            </div>
-            <div class="stat-row">
-                <span>FIREWALL</span>
-                <strong id="stat-firewall">STANDARD</strong>
-            </div>
-            <div class="stat-row">
-                <span>BEST STREAK</span>
-                <strong id="stat-best">0</strong>
-            </div>
-            <div class="stat-row">
-                <span>VAULTS CRACKED</span>
-                <strong id="stat-cracked">0</strong>
-            </div>
+            <div class="stat-row"><span>CLEARANCE XP</span><strong id="stat-xp">0 XP</strong></div>
+            <div class="stat-row"><span>ACTIVE MODE</span><strong id="stat-mode">4-DIGIT</strong></div>
+            <div class="stat-row" id="daily-solves-row"><span>DAILY SOLVES</span><strong id="stat-daily-solves">{{ daily_solves }}</strong></div>
+            <div class="stat-row"><span>FIREWALL</span><strong id="stat-firewall">STANDARD</strong></div>
+            <div class="stat-row"><span>BEST STREAK</span><strong id="stat-best">0</strong></div>
+            <div class="stat-row"><span>VAULTS CRACKED</span><strong id="stat-cracked">0</strong></div>
             <button type="button" class="side-reset-btn" onmouseenter="playHover()" onclick="resetGame()">NEW TARGET PIN</button>
-            <button type="button" class="side-mode-btn" onmouseenter="playHover()" onclick="openLeaderboard()">GLOBAL LEADERBOARD</button>
+            <button type="button" class="side-mode-btn" onmouseenter="playHover()" onclick="openLeaderboard('xp')">LEADERBOARDS</button>
+            <button type="button" class="side-mode-btn" onmouseenter="playHover()" onclick="openMyProfile()">AGENT DOSSIER</button>
             <button type="button" class="side-mode-btn" onmouseenter="playHover()" onclick="backToMenu()">CHANGE MODE / SETTINGS</button>
         </aside>
     </div>

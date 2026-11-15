@@ -7,6 +7,8 @@ let selectedTimerSeconds = 0;
 
 let mutNoRepeat = false;
 let mutTimeDrain = false;
+let mutVirusJam = false;
+let jammedDigit = null;
 
 let gameMode = "standard";
 let heistStage = 1;
@@ -16,9 +18,12 @@ let customClues = 2;
 let dailyDateStr = "";
 let dailySolvesCount = 0;
 let guessHistory = [];
+let slotPins = [];
 
 let timerInterval = null;
 let timeRemaining = 0;
+let speedrunElapsed = 0;
+let speedrunTimerInterval = null;
 
 let gameOver = false;
 let isSubmitting = false;
@@ -29,8 +34,12 @@ let digitStates = {};
 let winStreak = parseInt(localStorage.getItem("pinCrackerStreak") || "0", 10);
 let bestStreak = parseInt(localStorage.getItem("pinCrackerBest") || "0", 10);
 let totalCracked = parseInt(localStorage.getItem("pinCrackerTotal") || "0", 10);
-let agentHandle = localStorage.getItem("pinCrackerHandle") || "";
 let totalXP = parseInt(localStorage.getItem("pinCrackerXP") || "0", 10);
+let maxDiffCleared = localStorage.getItem("pinCrackerMaxDiff") || "4-DIGIT";
+let bestDailySpeed = parseFloat(localStorage.getItem("pinCrackerBestSpeed") || "0");
+let activeTheme = localStorage.getItem("pinCrackerTheme") || "cyan";
+let agentHandle = localStorage.getItem("pinCrackerHandle") || "";
+let unlockedBadges = JSON.parse(localStorage.getItem("pinCrackerBadges") || "[]");
 
 const RANKS = [
     { minXP: 0, title: "SCRIPT KIDDIE" },
@@ -45,6 +54,21 @@ const RANKS = [
     { minXP: 8000, title: "ZERO-DAY SOVEREIGN" }
 ];
 
+const THEMES = [
+    { id: "cyan", name: "CLASSIC CYAN", reqXP: 0, className: "" },
+    { id: "emerald", name: "MATRIX EMERALD", reqXP: 600, className: "theme-emerald" },
+    { id: "amber", name: "AMBER CRT", reqXP: 1700, className: "theme-amber" },
+    { id: "crimson", name: "CRIMSON OVERDRIVE", reqXP: 5500, className: "theme-crimson" }
+];
+
+const BADGES = [
+    { id: "first_blood", name: "FIRST BREACH", desc: "Crack your first vault" },
+    { id: "one_shot", name: "FIRST TRY LUCK", desc: "Crack a 4+ digit PIN on Attempt #1" },
+    { id: "clutch", name: "CLUTCH SPECIALIST", desc: "Win with under 2.0s remaining" },
+    { id: "streak_5", name: "UNTOUCHABLE", desc: "Reach a 5-win streak" },
+    { id: "extreme_6", name: "6-DIGIT MASTER", desc: "Crack a 6-digit vault" },
+    { id: "virus_clear", name: "ANTIVIRUS", desc: "Win with Virus Jam enabled" }
+];
 let audioCtx = null;
 
 function getAudioContext() {
@@ -52,9 +76,7 @@ function getAudioContext() {
         const Ctx = window.AudioContext || window.webkitAudioContext;
         audioCtx = new Ctx();
     }
-    if (audioCtx.state === "suspended") {
-        audioCtx.resume();
-    }
+    if (audioCtx.state === "suspended") audioCtx.resume();
     return audioCtx;
 }
 
@@ -73,26 +95,16 @@ function playTone(freq, duration, type, volume) {
         gain.connect(ctx.destination);
         osc.start(now);
         osc.stop(now + duration + 0.01);
-        osc.onended = function() {
-            osc.disconnect();
-            gain.disconnect();
-        };
-    } catch (e) {
-        // Ignore before first interaction
-    }
+        osc.onended = function() { osc.disconnect(); gain.disconnect(); };
+    } catch (e) {}
 }
 
-function playHover() {
-    if (gameOver) return;
-    playTone(920, 0.022, "sine", 0.018);
-}
-
+function playHover() { if (!gameOver) playTone(920, 0.022, "sine", 0.018); }
 function playWinSound() {
     playTone(523.25, 0.12, "triangle", 0.08);
     setTimeout(function() { playTone(659.25, 0.12, "triangle", 0.08); }, 110);
     setTimeout(function() { playTone(783.99, 0.25, "triangle", 0.08); }, 220);
 }
-
 function playLoseSound() {
     playTone(220, 0.2, "sawtooth", 0.07);
     setTimeout(function() { playTone(165, 0.35, "sawtooth", 0.07); }, 180);
@@ -100,10 +112,16 @@ function playLoseSound() {
 
 function getRankTitle(xp) {
     let currentTitle = RANKS.slice(0, 1).pop().title;
-    RANKS.forEach(function(r) {
-        if (xp >= r.minXP) currentTitle = r.title;
-    });
+    RANKS.forEach(function(r) { if (xp >= r.minXP) currentTitle = r.title; });
     return currentTitle;
+}
+
+function applySavedTheme() {
+    document.body.classList.remove("theme-emerald", "theme-amber", "theme-crimson");
+    const found = THEMES.find(function(t) { return t.id === activeTheme; });
+    if (found && found.className && totalXP >= found.reqXP) {
+        document.body.classList.add(found.className);
+    }
 }
 
 function triggerCalcEffect(className) {
@@ -120,7 +138,9 @@ window.addEventListener("DOMContentLoaded", function() {
     const solvesEl = document.getElementById("stat-daily-solves");
     if (solvesEl) dailySolvesCount = parseInt(solvesEl.innerText || "0", 10);
 
+    applySavedTheme();
     buildDigitMatrix();
+    buildSlotPins();
     updateStatsDisplay();
     updateScreen();
 
@@ -135,11 +155,10 @@ window.addEventListener("DOMContentLoaded", function() {
                 customClues = (decoded.clues !== undefined) ? parseInt(decoded.clues, 10) : 2;
                 startGame("custom");
             }
-        } catch (err) {
-            console.warn("Invalid custom vault link");
-        }
+        } catch (err) {}
     }
 });
+
 function buildDigitMatrix() {
     const grid = document.getElementById("digit-matrix");
     if (!grid) return;
@@ -173,6 +192,51 @@ function updateDigitMatrix(guess, statuses) {
         }
     });
 }
+function buildSlotPins() {
+    const row = document.getElementById("slot-pins-row");
+    if (!row) return;
+    row.innerHTML = "";
+    slotPins = new Array(pinLength).fill("");
+    for (let i = 0; i < pinLength; i++) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "scratch-slot";
+        btn.innerText = "?";
+        btn.title = "Click to pin suspected digit for Slot #" + (i + 1);
+        btn.onclick = function() {
+            playTone(700, 0.03, "sine", 0.04);
+            if (slotPins[i] === "") slotPins[i] = "0";
+            else if (slotPins[i] === "9") slotPins[i] = "";
+            else slotPins[i] = String(parseInt(slotPins[i], 10) + 1);
+            btn.innerText = slotPins[i] === "" ? "?" : slotPins[i];
+            btn.classList.toggle("pinned", slotPins[i] !== "");
+        };
+        row.appendChild(btn);
+    }
+}
+
+function clearVirusJam() {
+    if (jammedDigit !== null) {
+        const oldBtn = document.getElementById("key-btn-" + jammedDigit);
+        if (oldBtn) {
+            oldBtn.classList.remove("virus-jammed");
+            oldBtn.disabled = gameOver;
+        }
+        jammedDigit = null;
+    }
+}
+
+function applyVirusJam() {
+    clearVirusJam();
+    if (!mutVirusJam || gameOver) return;
+    const randDigit = Math.floor(Math.random() * 10);
+    jammedDigit = randDigit;
+    const btn = document.getElementById("key-btn-" + randDigit);
+    if (btn) {
+        btn.classList.add("virus-jammed");
+        btn.disabled = true;
+    }
+}
 
 function toggleMutator(name, btnEl) {
     playTone(640, 0.05, "triangle", 0.06);
@@ -182,6 +246,9 @@ function toggleMutator(name, btnEl) {
     } else if (name === "timeDrain") {
         mutTimeDrain = !mutTimeDrain;
         btnEl.classList.toggle("active", mutTimeDrain);
+    } else if (name === "virusJam") {
+        mutVirusJam = !mutVirusJam;
+        btnEl.classList.toggle("active", mutVirusJam);
     }
 }
 
@@ -199,22 +266,28 @@ function selectOption(groupName, val, btnEl) {
     });
     btnEl.classList.add("active");
 
-    if (groupName === "difficulty") {
-        selectedDifficulty = val;
-    } else if (groupName === "attempts") {
-        selectedMaxAttempts = parseInt(val, 10);
-    } else if (groupName === "timer") {
-        selectedTimerSeconds = parseInt(val, 10);
-    } else if (groupName === "customClues") {
-        customClues = parseInt(val, 10);
-    }
+    if (groupName === "difficulty") selectedDifficulty = val;
+    else if (groupName === "attempts") selectedMaxAttempts = parseInt(val, 10);
+    else if (groupName === "timer") selectedTimerSeconds = parseInt(val, 10);
+    else if (groupName === "customClues") customClues = parseInt(val, 10);
 }
 
 function stopTimer() {
-    if (timerInterval) {
-        clearInterval(timerInterval);
-        timerInterval = null;
-    }
+    if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+    if (speedrunTimerInterval) { clearInterval(speedrunTimerInterval); speedrunTimerInterval = null; }
+}
+
+function startSpeedrunStopwatch() {
+    stopTimer();
+    const badge = document.getElementById("timer-badge");
+    speedrunElapsed = 0;
+    badge.classList.remove("hidden", "urgent");
+    badge.innerText = "0.0s";
+    speedrunTimerInterval = setInterval(function() {
+        if (gameOver) { stopTimer(); return; }
+        speedrunElapsed += 0.1;
+        badge.innerText = speedrunElapsed.toFixed(1) + "s";
+    }, 100);
 }
 
 function startCountdown(seconds) {
@@ -230,19 +303,14 @@ function startCountdown(seconds) {
     badge.innerText = seconds.toFixed(1) + "s";
 
     timerInterval = setInterval(async function() {
-        if (gameOver) {
-            stopTimer();
-            return;
-        }
+        if (gameOver) { stopTimer(); return; }
         timeRemaining -= 1;
         const secs = Math.max(0, timeRemaining / 10);
         badge.innerText = secs.toFixed(1) + "s";
 
         if (secs <= 5.0) {
             badge.classList.add("urgent");
-            if (timeRemaining % 10 === 0 && timeRemaining > 0) {
-                playTone(880, 0.04, "sine", 0.04);
-            }
+            if (timeRemaining % 10 === 0 && timeRemaining > 0) playTone(880, 0.04, "sine", 0.04);
         }
 
         if (timeRemaining <= 0) {
@@ -251,9 +319,11 @@ function startCountdown(seconds) {
         }
     }, 100);
 }
+
 async function handleTimeExpired() {
     if (gameOver) return;
     gameOver = true;
+    clearVirusJam();
     setKeypadDisabled(true);
     setLockStatus("TIME EXPIRED", "danger");
     triggerCalcEffect("shake-alarm");
@@ -284,142 +354,103 @@ async function handleTimeExpired() {
     entry.appendChild(timeoutActions);
     log.prepend(entry);
 }
+function openMyProfile() {
+    playTone(620, 0.06, "sine", 0.06);
+    renderProfileModal({
+        name: agentHandle || "ANON_AGENT",
+        xp: totalXP,
+        cracked: totalCracked,
+        bestStreak: bestStreak,
+        maxDiff: maxDiffCleared,
+        fastDaily: bestDailySpeed > 0 ? (bestDailySpeed.toFixed(1) + "s") : "--",
+        isSelf: true
+    });
+    document.getElementById("profile-modal").classList.remove("hidden");
+}
+
+async function openAgentProfile(handle) {
+    playTone(620, 0.06, "sine", 0.06);
+    if (agentHandle && handle === agentHandle) {
+        openMyProfile();
+        return;
+    }
+    try {
+        const res = await fetch("/profile/" + encodeURIComponent(handle));
+        const data = await res.json();
+        const p = data.profile || {};
+        renderProfileModal({
+            name: data.name || handle,
+            xp: p.xp || 0,
+            cracked: p.cracked || 0,
+            bestStreak: p.bestStreak || 0,
+            maxDiff: p.maxDiff || "4-DIGIT",
+            fastDaily: p.fastDaily || "--",
+            isSelf: false
+        });
+        document.getElementById("profile-modal").classList.remove("hidden");
+    } catch (e) {}
+}
+
+function closeProfileModal() {
+    document.getElementById("profile-modal").classList.add("hidden");
+}
+
+function renderProfileModal(info) {
+    document.getElementById("prof-name").innerText = info.name;
+    document.getElementById("prof-rank").innerText = getRankTitle(info.xp);
+    document.getElementById("prof-xp").innerText = info.xp + " XP";
+    document.getElementById("prof-cracked").innerText = String(info.cracked);
+    document.getElementById("prof-best").innerText = String(info.bestStreak);
+    document.getElementById("prof-maxdiff").innerText = info.maxDiff;
+    document.getElementById("prof-fast").innerText = info.fastDaily;
+
+    const unlocksArea = document.getElementById("prof-unlocks-area");
+    unlocksArea.style.display = info.isSelf ? "block" : "none";
+    if (!info.isSelf) return;
+
+    const themeGrid = document.getElementById("theme-grid");
+    themeGrid.innerHTML = "";
+    THEMES.forEach(function(t) {
+        const unlocked = totalXP >= t.reqXP;
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "theme-btn" + (unlocked ? " unlocked" : "") + (activeTheme === t.id ? " active" : "");
+        btn.innerText = unlocked ? ("✓ " + t.name) : ("🔒 " + t.name + " (" + t.reqXP + " XP)");
+        if (unlocked) {
+            btn.onclick = function() {
+                activeTheme = t.id;
+                localStorage.setItem("pinCrackerTheme", t.id);
+                applySavedTheme();
+                renderProfileModal(info);
+            };
+        }
+        themeGrid.appendChild(btn);
+    });
+
+    const badgesGrid = document.getElementById("badges-grid");
+    badgesGrid.innerHTML = "";
+    BADGES.forEach(function(b) {
+        const earned = unlockedBadges.includes(b.id);
+        const chip = document.createElement("div");
+        chip.className = "badge-chip" + (earned ? " earned" : "");
+        chip.title = b.desc;
+        chip.innerText = (earned ? "★ " : "☆ ") + b.name;
+        badgesGrid.appendChild(chip);
+    });
+}
 
 function openRanksModal() {
     playTone(620, 0.06, "sine", 0.06);
-    renderRanksModal();
-    document.getElementById("ranks-modal").classList.remove("hidden");
-}
-
-async function openLeaderboard() {
-    playTone(640, 0.06, "sine", 0.06);
-    const modal = document.getElementById("leaderboard-modal");
-    const input = document.getElementById("agent-handle-input");
-    const list = document.getElementById("leaderboard-list");
-    if (input && agentHandle) input.value = agentHandle;
-    if (list) list.innerHTML = '<div class="rank-row"><span>Loading global telemetry...</span></div>';
-    modal.classList.remove("hidden");
-
-    try {
-        const res = await fetch("/leaderboard");
-        if (!res.ok) throw new Error("Server returned " + res.status);
-        const data = await res.json();
-        renderLeaderboard(data.entries || []);
-    } catch (err) {
-        if (list) list.innerHTML = '<div class="rank-row"><span>Telemetry offline. Try again in a moment.</span></div>';
-    }
-}
-
-function closeLeaderboard() {
-    document.getElementById("leaderboard-modal").classList.add("hidden");
-}
-
-async function postScoreToLeaderboard() {
-    const input = document.getElementById("agent-handle-input");
-    const list = document.getElementById("leaderboard-list");
-    const raw = (input ? input.value.trim() : "") || "ANON_AGENT";
-    agentHandle = raw.replace(/[^a-zA-Z0-9_-]/g, "").toUpperCase().slice(0, 14) || "ANON_AGENT";
-    localStorage.setItem("pinCrackerHandle", agentHandle);
-    if (input) input.value = agentHandle;
-
-    playTone(760, 0.1, "triangle", 0.07);
-    try {
-        const res = await fetch("/leaderboard", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name: agentHandle, xp: totalXP })
-        });
-        if (!res.ok) throw new Error("Server returned " + res.status);
-        const data = await res.json();
-        renderLeaderboard(data.entries || []);
-    } catch (err) {
-        if (list) list.innerHTML = '<div class="rank-row"><span>Sync failed. Refresh and try again.</span></div>';
-    }
-}
-
-function closeLeaderboard() {
-    document.getElementById("leaderboard-modal").classList.add("hidden");
-}
-
-async function postScoreToLeaderboard() {
-    const input = document.getElementById("agent-handle-input");
-    const raw = (input ? input.value.trim() : "") || "ANON_AGENT";
-    agentHandle = raw.replace(/[^a-zA-Z0-9_-]/g, "").toUpperCase().slice(0, 14) || "ANON_AGENT";
-    localStorage.setItem("pinCrackerHandle", agentHandle);
-    if (input) input.value = agentHandle;
-
-    playTone(760, 0.1, "triangle", 0.07);
-    const res = await fetch("/leaderboard", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: agentHandle, xp: totalXP })
-    });
-    const data = await res.json();
-    renderLeaderboard(data.entries || []);
-}
-
-function renderLeaderboard(entries) {
-    const list = document.getElementById("leaderboard-list");
-    if (!list) return;
-    list.innerHTML = "";
-
-    if (!entries.length) {
-        const empty = document.createElement("div");
-        empty.className = "rank-row";
-        empty.innerText = "No agents synced yet. Be #1!";
-        list.appendChild(empty);
-        return;
-    }
-
-    entries.forEach(function(item, idx) {
-        const row = document.createElement("div");
-        const isMe = (agentHandle && item.name === agentHandle);
-        row.className = "rank-row" + (isMe ? " current" : (idx === 0 ? " unlocked" : ""));
-
-        const left = document.createElement("span");
-        const num = document.createElement("span");
-        num.className = "lb-rank-num";
-        num.innerText = "#" + (idx + 1);
-
-        const nameNode = document.createTextNode(item.name);
-        const rankTag = document.createElement("span");
-        rankTag.className = "lb-title-tag";
-        rankTag.innerText = "[" + getRankTitle(item.xp) + "]";
-
-        left.appendChild(num);
-        left.appendChild(nameNode);
-        left.appendChild(rankTag);
-
-        const right = document.createElement("strong");
-        right.innerText = item.xp + " XP";
-
-        row.appendChild(left);
-        row.appendChild(right);
-        list.appendChild(row);
-    });
-}
-
-
-function closeRanksModal() {
-    document.getElementById("ranks-modal").classList.add("hidden");
-}
-
-function renderRanksModal() {
     const list = document.getElementById("ranks-list");
     const progressText = document.getElementById("rank-progress-text");
     const barFill = document.getElementById("xp-bar-fill");
-    if (!list) return;
-
     const currentTitle = getRankTitle(totalXP);
     let nextRank = null;
     let currentFloor = 0;
 
     RANKS.forEach(function(r) {
-        if (totalXP >= r.minXP) {
-            currentFloor = r.minXP;
-        } else if (!nextRank) {
-            nextRank = r;
-        }
+        if (totalXP >= r.minXP) currentFloor = r.minXP;
+        else if (!nextRank) nextRank = r;
     });
 
     if (nextRank) {
@@ -438,19 +469,92 @@ function renderRanksModal() {
         const isCurrent = (r.title === currentTitle);
         const isUnlocked = (totalXP >= r.minXP);
         row.className = "rank-row" + (isCurrent ? " current" : (isUnlocked ? " unlocked" : ""));
+        row.innerHTML = "<span>" + (isCurrent ? "▶ " : (isUnlocked ? "✓ " : "🔒 ")) + r.title + "</span><span>" + r.minXP + " XP</span>";
+        list.appendChild(row);
+    });
+    document.getElementById("ranks-modal").classList.remove("hidden");
+}
 
-        const left = document.createElement("span");
-        left.innerText = (isCurrent ? "▶ " : (isUnlocked ? "✓ " : "🔒 ")) + r.title;
+function closeRanksModal() { document.getElementById("ranks-modal").classList.add("hidden"); }
 
-        const right = document.createElement("span");
-        right.innerText = r.minXP + " XP";
+let currentLbTab = "xp";
 
-        row.appendChild(left);
-        row.appendChild(right);
+async function openLeaderboard(tab) {
+    currentLbTab = tab || "xp";
+    playTone(640, 0.06, "sine", 0.06);
+    const input = document.getElementById("agent-handle-input");
+    if (input && agentHandle) input.value = agentHandle;
+    document.getElementById("leaderboard-modal").classList.remove("hidden");
+    await switchLeaderboardTab(currentLbTab);
+}
+
+function closeLeaderboard() { document.getElementById("leaderboard-modal").classList.add("hidden"); }
+
+async function switchLeaderboardTab(tab) {
+    currentLbTab = tab;
+    document.getElementById("lb-tab-xp").classList.toggle("active", tab === "xp");
+    document.getElementById("lb-tab-speed").classList.toggle("active", tab === "speed");
+    document.getElementById("lb-xp-submit").style.display = (tab === "xp") ? "flex" : "none";
+    document.getElementById("lb-desc-text").innerText = (tab === "xp")
+        ? "Click any agent row to inspect their dossier."
+        : "Fastest solves on today's Daily Speedrun Vault!";
+
+    const list = document.getElementById("leaderboard-list");
+    list.innerHTML = '<div class="rank-row"><span>Loading global telemetry...</span></div>';
+    try {
+        const url = (tab === "xp") ? "/leaderboard" : "/daily_speed_lb";
+        const res = await fetch(url);
+        const data = await res.json();
+        renderLeaderboard(data.entries || [], tab);
+    } catch (e) {
+        list.innerHTML = '<div class="rank-row"><span>Telemetry offline. Try again in a moment.</span></div>';
+    }
+}
+
+function buildProfilePayload() {
+    return {
+        xp: totalXP,
+        cracked: totalCracked,
+        bestStreak: bestStreak,
+        maxDiff: maxDiffCleared,
+        fastDaily: bestDailySpeed > 0 ? (bestDailySpeed.toFixed(1) + "s") : "--"
+    };
+}
+
+async function postScoreToLeaderboard() {
+    const input = document.getElementById("agent-handle-input");
+    const raw = (input ? input.value.trim() : "") || "ANON_AGENT";
+    agentHandle = raw.replace(/[^a-zA-Z0-9_-]/g, "").toUpperCase().slice(0, 14) || "ANON_AGENT";
+    localStorage.setItem("pinCrackerHandle", agentHandle);
+    if (input) input.value = agentHandle;
+
+    playTone(760, 0.1, "triangle", 0.07);
+    const res = await fetch("/leaderboard", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: agentHandle, xp: totalXP, profile: buildProfilePayload() })
+    });
+    const data = await res.json();
+    renderLeaderboard(data.entries || [], "xp");
+}
+
+function renderLeaderboard(entries, tab) {
+    const list = document.getElementById("leaderboard-list");
+    list.innerHTML = "";
+    if (!entries.length) {
+        list.innerHTML = '<div class="rank-row"><span>No entries yet. Be #1!</span></div>';
+        return;
+    }
+    entries.forEach(function(item, idx) {
+        const row = document.createElement("div");
+        const isMe = (agentHandle && item.name === agentHandle);
+        row.className = "rank-row clickable" + (isMe ? " current" : (idx === 0 ? " unlocked" : ""));
+        row.onclick = function() { openAgentProfile(item.name); };
+        const rightText = (tab === "xp") ? (item.xp + " XP") : (item.time.toFixed(1) + "s");
+        row.innerHTML = '<span><span class="lb-rank-num">#' + (idx + 1) + '</span>' + item.name + '</span><strong>' + rightText + '</strong>';
         list.appendChild(row);
     });
 }
-
 function updateStatsDisplay() {
     const rankTitle = getRankTitle(totalXP);
     const startRank = document.getElementById("start-rank");
@@ -477,12 +581,14 @@ function updateStatsDisplay() {
     if (dailySolvesEl) dailySolvesEl.innerText = String(dailySolvesCount);
 
     const fwTags = [];
-    if (mutNoRepeat && gameMode !== "daily" && gameMode !== "custom") fwTags.push("NO-REPEAT");
+    if (mutNoRepeat && gameMode !== "daily" && gameMode !== "daily_speed" && gameMode !== "custom") fwTags.push("NO-REP");
     if (mutTimeDrain && timerInterval !== null) fwTags.push("DRAIN");
-    if (statFirewall) statFirewall.innerText = fwTags.length ? fwTags.join(" + ") : "STANDARD";
+    if (mutVirusJam) fwTags.push("VIRUS");
+    if (statFirewall) statFirewall.innerText = fwTags.length ? fwTags.join("+") : "STANDARD";
 
     const modeLabels = {
         daily: "DAILY (" + pinLength + "-DIGIT)",
+        daily_speed: "DAILY SPEEDRUN",
         heist: "HEIST STAGE " + heistStage + "/3",
         progressive: "PROGRESSIVE (" + pinLength + "D)",
         custom: "FRIEND VAULT",
@@ -491,10 +597,10 @@ function updateStatsDisplay() {
     if (statMode) statMode.innerText = modeLabels[gameMode] || (pinLength + "-DIGIT");
     if (hudTitle) hudTitle.innerText = gameMode === "heist" ? ("HEIST_STAGE_" + heistStage) : (gameMode.toUpperCase() + "_VAULT");
 }
+
 function toggleSound() {
     soundEnabled = !soundEnabled;
-    const btn = document.getElementById("sound-btn");
-    btn.innerText = soundEnabled ? "SFX: ON" : "SFX: OFF";
+    document.getElementById("sound-btn").innerText = soundEnabled ? "SFX: ON" : "SFX: OFF";
     if (soundEnabled) playTone(520, 0.08, "sine", 0.06);
 }
 
@@ -520,7 +626,7 @@ function copyCustomLink() {
     const url = window.location.origin + "/?v=" + encoded;
     navigator.clipboard.writeText(url);
     playTone(740, 0.1, "triangle", 0.07);
-    alert("Challenge link copied to clipboard! Send it to a friend.");
+    alert("Challenge link copied to clipboard!");
 }
 
 async function launchCustomLocal() {
@@ -546,6 +652,7 @@ async function startGame(mode) {
 function backToMenu() {
     playTone(330, 0.08, "sine", 0.06);
     stopTimer();
+    clearVirusJam();
     gameOver = false;
     isSubmitting = false;
     current = "";
@@ -553,7 +660,6 @@ function backToMenu() {
     document.getElementById("start-screen").classList.remove("hidden");
     updateStatsDisplay();
 }
-
 function updateScreen() {
     const screen = document.getElementById("screen");
     screen.classList.remove("locked");
@@ -569,7 +675,6 @@ function setLockStatus(text, stateClass) {
 function updateAttemptsDisplay(used, max) {
     const el = document.getElementById("attempts-display");
     const decryptBtn = document.getElementById("decrypt-btn");
-
     if (max === 0) {
         el.innerText = "∞ (USED: " + used + ")";
         el.classList.remove("danger");
@@ -583,16 +688,19 @@ function updateAttemptsDisplay(used, max) {
 }
 
 function setKeypadDisabled(disabled) {
-    document.querySelectorAll("#keypad button").forEach(function(btn) {
-        btn.disabled = disabled;
-    });
+    document.querySelectorAll("#keypad button").forEach(function(btn) { btn.disabled = disabled; });
     const decryptBtn = document.getElementById("decrypt-btn");
     if (decryptBtn && disabled) decryptBtn.disabled = true;
 }
 
 function press(num) {
     if (gameOver || isSubmitting) return;
-    if (mutNoRepeat && gameMode !== "daily" && gameMode !== "custom" && current.includes(num)) {
+    if (jammedDigit !== null && parseInt(num, 10) === jammedDigit) {
+        playTone(170, 0.09, "sawtooth", 0.05);
+        triggerCalcEffect("shake-alarm");
+        return;
+    }
+    if (mutNoRepeat && gameMode !== "daily" && gameMode !== "daily_speed" && gameMode !== "custom" && current.includes(num)) {
         playTone(190, 0.09, "sawtooth", 0.05);
         triggerCalcEffect("shake-alarm");
         return;
@@ -610,6 +718,7 @@ function clearScreen() {
     current = "";
     updateScreen();
 }
+
 function buildTiles(guess, statuses) {
     const container = document.createElement("div");
     container.className = "tiles";
@@ -628,11 +737,8 @@ function buildResetButton(label, nextStage) {
     btn.className = "reset-btn";
     btn.innerText = label;
     btn.onclick = function() {
-        if (nextStage) {
-            heistStage = nextStage;
-        } else if (gameMode === "heist") {
-            heistStage = 1;
-        }
+        if (nextStage) heistStage = nextStage;
+        else if (gameMode === "heist") heistStage = 1;
         resetGame();
     };
     return btn;
@@ -653,9 +759,9 @@ function buildShareButton(attemptsUsed, maxTries, won) {
     btn.className = "share-btn";
     btn.innerText = "SHARE";
     btn.onclick = function() {
-        const header = gameMode === "daily"
-            ? "PIN CRACKER // Daily Vault (" + dailyDateStr + " - " + pinLength + "D)"
-            : "PIN CRACKER [" + gameMode.toUpperCase() + "]";
+        const header = gameMode === "daily_speed"
+            ? "PIN CRACKER // Daily Speedrun (" + speedrunElapsed.toFixed(1) + "s)"
+            : (gameMode === "daily" ? "PIN CRACKER // Daily Vault (" + dailyDateStr + ")" : "PIN CRACKER [" + gameMode.toUpperCase() + "]");
         const score = won ? (attemptsUsed + "/" + (maxTries || "∞")) : "X/" + (maxTries || "∞");
         const rows = guessHistory.map(function(statuses) {
             return statuses.map(function(s) {
@@ -672,22 +778,23 @@ function buildShareButton(attemptsUsed, maxTries, won) {
     return btn;
 }
 
+function unlockBadge(id) {
+    if (!unlockedBadges.includes(id)) {
+        unlockedBadges.push(id);
+        localStorage.setItem("pinCrackerBadges", JSON.stringify(unlockedBadges));
+    }
+}
+
 async function buyClue() {
     if (gameOver || isSubmitting || decryptUsed) return;
     isSubmitting = true;
     try {
         const res = await fetch("/decrypt", { method: "POST" });
         const data = await res.json();
-        if (data.error) {
-            playTone(200, 0.12, "sawtooth", 0.05);
-            return;
-        }
+        if (data.error) { playTone(200, 0.12, "sawtooth", 0.05); return; }
         decryptUsed = true;
         const decryptBtn = document.getElementById("decrypt-btn");
-        if (decryptBtn) {
-            decryptBtn.disabled = true;
-            decryptBtn.innerText = "DECRYPT USED (1/1)";
-        }
+        if (decryptBtn) { decryptBtn.disabled = true; decryptBtn.innerText = "DECRYPT USED (1/1)"; }
         playTone(740, 0.12, "triangle", 0.07);
         updateAttemptsDisplay(data.attempts, data.max_attempts);
 
@@ -718,10 +825,7 @@ async function submitGuess() {
             body: JSON.stringify({ guess: guess })
         });
         const data = await res.json();
-        if (data.error) {
-            triggerCalcEffect("shake-alarm");
-            return;
-        }
+        if (data.error) { triggerCalcEffect("shake-alarm"); return; }
 
         guessHistory.push(data.statuses);
         updateAttemptsDisplay(data.attempts, data.max_attempts);
@@ -743,25 +847,24 @@ async function submitGuess() {
         const entry = document.createElement("div");
         entry.className = "log-entry";
         entry.appendChild(buildTiles(guess, data.statuses));
-
         const statusText = document.createElement("span");
 
         if (data.won) {
             const isHeistAdvance = (gameMode === "heist" && heistStage < 3);
             gameOver = true;
+            clearVirusJam();
             if (!isHeistAdvance) stopTimer();
             setKeypadDisabled(true);
             setLockStatus(isHeistAdvance ? "STAGE CLEARED" : "BREACHED", "status-unlocked");
             triggerCalcEffect("pulse-win");
 
-            if (typeof data.daily_solves === "number") {
-                dailySolvesCount = data.daily_solves;
-            }
+            if (typeof data.daily_solves === "number") dailySolvesCount = data.daily_solves;
 
             let earnedXP = 15 + (pinLength * 8);
             if (mutNoRepeat) earnedXP += 10;
             if (mutTimeDrain && selectedTimerSeconds > 0) earnedXP += 15;
-            if (gameMode === "daily") earnedXP += 20;
+            if (mutVirusJam) earnedXP += 20;
+            if (gameMode === "daily" || gameMode === "daily_speed") earnedXP += 25;
             if (gameMode === "heist" && heistStage === 3) earnedXP += 45;
 
             if (!isHeistAdvance) {
@@ -769,18 +872,41 @@ async function submitGuess() {
                 totalCracked += 1;
                 totalXP += earnedXP;
                 if (winStreak > bestStreak) bestStreak = winStreak;
+                if (pinLength >= parseInt(maxDiffCleared, 10)) maxDiffCleared = pinLength + "-DIGIT";
+
+                unlockBadge("first_blood");
+                if (data.attempts === 1 && pinLength >= 4) unlockBadge("one_shot");
+                if (timerInterval !== null && timeRemaining <= 20) unlockBadge("clutch");
+                if (winStreak >= 5) unlockBadge("streak_5");
+                if (pinLength === 6) unlockBadge("extreme_6");
+                if (mutVirusJam) unlockBadge("virus_clear");
+
+                if (gameMode === "daily_speed") {
+                    const finalTime = parseFloat(speedrunElapsed.toFixed(1));
+                    if (bestDailySpeed === 0 || finalTime < bestDailySpeed) {
+                        bestDailySpeed = finalTime;
+                        localStorage.setItem("pinCrackerBestSpeed", String(bestDailySpeed));
+                    }
+                    fetch("/daily_speed_lb", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ name: agentHandle || "ANON_AGENT", time: finalTime })
+                    });
+                }
+
                 localStorage.setItem("pinCrackerStreak", String(winStreak));
                 localStorage.setItem("pinCrackerBest", String(bestStreak));
                 localStorage.setItem("pinCrackerTotal", String(totalCracked));
                 localStorage.setItem("pinCrackerXP", String(totalXP));
+                localStorage.setItem("pinCrackerMaxDiff", maxDiffCleared);
+
                 if (agentHandle) {
                     fetch("/leaderboard", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ name: agentHandle, xp: totalXP })
+                        body: JSON.stringify({ name: agentHandle, xp: totalXP, profile: buildProfilePayload() })
                     });
                 }
-
             }
             updateStatsDisplay();
             playWinSound();
@@ -788,7 +914,7 @@ async function submitGuess() {
             entry.classList.add("win");
             statusText.innerText = isHeistAdvance
                 ? ("STAGE " + heistStage + " BYPASSED!")
-                : ("GRANTED +" + earnedXP + " XP");
+                : (gameMode === "daily_speed" ? ("TIME: " + speedrunElapsed.toFixed(1) + "s (+" + earnedXP + " XP)") : ("GRANTED +" + earnedXP + " XP"));
             entry.appendChild(statusText);
 
             const winActions = document.createElement("div");
@@ -803,6 +929,7 @@ async function submitGuess() {
             entry.appendChild(winActions);
         } else if (data.lost) {
             gameOver = true;
+            clearVirusJam();
             stopTimer();
             setKeypadDisabled(true);
             setLockStatus("ALARM TRIGGERED", "danger");
@@ -828,7 +955,8 @@ async function submitGuess() {
             entry.appendChild(loseActions);
         } else {
             playTone(390, 0.08, "triangle", 0.06);
-            statusText.innerText = data.exact + " VERIFIED // " + data.misplaced + " SHIFTED";
+            applyVirusJam();
+            statusText.innerText = data.exact + " VERIFIED // " + data.misplaced + " SHIFTED" + (jammedDigit !== null ? (" [KEY " + jammedDigit + " JAMMED]") : "");
             entry.appendChild(statusText);
         }
 
@@ -841,6 +969,7 @@ async function submitGuess() {
 async function resetGame() {
     isSubmitting = false;
     decryptUsed = false;
+    clearVirusJam();
     const keepHeistTimer = (gameMode === "heist" && heistStage > 1 && timerInterval !== null);
     if (!keepHeistTimer) stopTimer();
 
@@ -863,18 +992,13 @@ async function resetGame() {
     pinLength = data.length;
     maxAttempts = data.max_attempts;
     dailyDateStr = data.daily_date || "";
-    if (typeof data.daily_solves === "number") {
-        dailySolvesCount = data.daily_solves;
-    }
+    if (typeof data.daily_solves === "number") dailySolvesCount = data.daily_solves;
     guessHistory = [];
     gameOver = false;
     current = "";
 
     const decryptBtn = document.getElementById("decrypt-btn");
-    if (decryptBtn) {
-        decryptBtn.disabled = false;
-        decryptBtn.innerText = "EMERGENCY DECRYPT (-1 TRY)";
-    }
+    if (decryptBtn) { decryptBtn.disabled = false; decryptBtn.innerText = "EMERGENCY DECRYPT (-1 TRY)"; }
 
     const boxTitle = document.getElementById("hints-box-title");
     if (boxTitle) {
@@ -886,6 +1010,7 @@ async function resetGame() {
     setKeypadDisabled(false);
     setLockStatus("LOCKED", "status-locked");
     resetDigitMatrix();
+    buildSlotPins();
     updateScreen();
     updateAttemptsDisplay(0, maxAttempts);
 
@@ -898,18 +1023,16 @@ async function resetGame() {
     });
     document.getElementById("log").innerHTML = "";
 
-    if (gameMode === "daily" || gameMode === "custom") {
-        startCountdown(0);
-    } else if (gameMode === "heist") {
-        if (!keepHeistTimer) startCountdown(60);
-    } else {
-        startCountdown(selectedTimerSeconds);
-    }
+    if (gameMode === "daily" || gameMode === "custom") startCountdown(0);
+    else if (gameMode === "daily_speed") startSpeedrunStopwatch();
+    else if (gameMode === "heist") { if (!keepHeistTimer) startCountdown(60); }
+    else startCountdown(selectedTimerSeconds);
     updateStatsDisplay();
 }
 
 document.addEventListener("keydown", function(e) {
     if (document.getElementById("game-screen").classList.contains("hidden")) return;
+    if (document.activeElement && document.activeElement.id === "agent-notes-box") return;
     if (gameOver || isSubmitting) return;
     if (e.key >= "0" && e.key <= "9") press(e.key);
     if (e.key === "Backspace") {
