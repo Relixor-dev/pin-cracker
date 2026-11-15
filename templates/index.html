@@ -83,6 +83,13 @@
         </div>
     </div>
 </div>
+
+<div class="footer-btn-row">
+    <button type="button" class="secondary-btn" onclick="openLeaderboard()">TOP 10 LEADERBOARD</button>
+    <button type="button" class="secondary-btn" onclick="openRules()">PROTOCOL / RULES</button>
+</div>
+
+
 <div class="modal-overlay hidden" id="custom-modal" onclick="closeCustomModal()">
     <div class="modal-card" onclick="event.stopPropagation()">
         <div class="modal-header">
@@ -129,6 +136,24 @@
         <div class="ranks-list" id="ranks-list"></div>
     </div>
 </div>
+
+<div class="modal-overlay hidden" id="leaderboard-modal" onclick="closeLeaderboard()">
+    <div class="modal-card" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h2>// GLOBAL TOP 10 AGENTS</h2>
+            <button type="button" class="close-modal" onclick="closeLeaderboard()">&times;</button>
+        </div>
+        <p class="modal-desc">Post your Clearance XP to the global Upstash database.</p>
+        <div class="lb-submit-row">
+            <input type="text" id="agent-handle-input" class="terminal-input" maxlength="14" placeholder="AGENT CODENAME">
+            <button type="button" class="launch-btn lb-post-btn" onclick="postScoreToLeaderboard()">SYNC XP</button>
+        </div>
+        <div class="ranks-list" id="leaderboard-list">
+            <div class="rank-row"><span>Loading global telemetry...</span></div>
+        </div>
+    </div>
+</div>
+
 
 <div class="modal-overlay hidden" id="rules-modal" onclick="closeRules()">
     <div class="modal-card" onclick="event.stopPropagation()">
@@ -254,6 +279,7 @@
                 <strong id="stat-cracked">0</strong>
             </div>
             <button type="button" class="side-reset-btn" onmouseenter="playHover()" onclick="resetGame()">NEW TARGET PIN</button>
+            <button type="button" class="side-mode-btn" onmouseenter="playHover()" onclick="openLeaderboard()">GLOBAL LEADERBOARD</button>
             <button type="button" class="side-mode-btn" onmouseenter="playHover()" onclick="backToMenu()">CHANGE MODE / SETTINGS</button>
         </aside>
     </div>

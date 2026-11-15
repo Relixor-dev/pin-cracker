@@ -29,6 +29,7 @@ let digitStates = {};
 let winStreak = parseInt(localStorage.getItem("pinCrackerStreak") || "0", 10);
 let bestStreak = parseInt(localStorage.getItem("pinCrackerBest") || "0", 10);
 let totalCracked = parseInt(localStorage.getItem("pinCrackerTotal") || "0", 10);
+let agentHandle = localStorage.getItem("pinCrackerHandle") || "";
 let totalXP = parseInt(localStorage.getItem("pinCrackerXP") || "0", 10);
 
 const RANKS = [
@@ -289,6 +290,81 @@ function openRanksModal() {
     renderRanksModal();
     document.getElementById("ranks-modal").classList.remove("hidden");
 }
+
+async function openLeaderboard() {
+    playTone(640, 0.06, "sine", 0.06);
+    const modal = document.getElementById("leaderboard-modal");
+    const input = document.getElementById("agent-handle-input");
+    if (input && agentHandle) input.value = agentHandle;
+    modal.classList.remove("hidden");
+
+    const res = await fetch("/leaderboard");
+    const data = await res.json();
+    renderLeaderboard(data.entries || []);
+}
+
+function closeLeaderboard() {
+    document.getElementById("leaderboard-modal").classList.add("hidden");
+}
+
+async function postScoreToLeaderboard() {
+    const input = document.getElementById("agent-handle-input");
+    const raw = (input ? input.value.trim() : "") || "ANON_AGENT";
+    agentHandle = raw.replace(/[^a-zA-Z0-9_-]/g, "").toUpperCase().slice(0, 14) || "ANON_AGENT";
+    localStorage.setItem("pinCrackerHandle", agentHandle);
+    if (input) input.value = agentHandle;
+
+    playTone(760, 0.1, "triangle", 0.07);
+    const res = await fetch("/leaderboard", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: agentHandle, xp: totalXP })
+    });
+    const data = await res.json();
+    renderLeaderboard(data.entries || []);
+}
+
+function renderLeaderboard(entries) {
+    const list = document.getElementById("leaderboard-list");
+    if (!list) return;
+    list.innerHTML = "";
+
+    if (!entries.length) {
+        const empty = document.createElement("div");
+        empty.className = "rank-row";
+        empty.innerText = "No agents synced yet. Be #1!";
+        list.appendChild(empty);
+        return;
+    }
+
+    entries.forEach(function(item, idx) {
+        const row = document.createElement("div");
+        const isMe = (agentHandle && item.name === agentHandle);
+        row.className = "rank-row" + (isMe ? " current" : (idx === 0 ? " unlocked" : ""));
+
+        const left = document.createElement("span");
+        const num = document.createElement("span");
+        num.className = "lb-rank-num";
+        num.innerText = "#" + (idx + 1);
+
+        const nameNode = document.createTextNode(item.name);
+        const rankTag = document.createElement("span");
+        rankTag.className = "lb-title-tag";
+        rankTag.innerText = "[" + getRankTitle(item.xp) + "]";
+
+        left.appendChild(num);
+        left.appendChild(nameNode);
+        left.appendChild(rankTag);
+
+        const right = document.createElement("strong");
+        right.innerText = item.xp + " XP";
+
+        row.appendChild(left);
+        row.appendChild(right);
+        list.appendChild(row);
+    });
+}
+
 
 function closeRanksModal() {
     document.getElementById("ranks-modal").classList.add("hidden");
@@ -663,6 +739,14 @@ async function submitGuess() {
                 localStorage.setItem("pinCrackerBest", String(bestStreak));
                 localStorage.setItem("pinCrackerTotal", String(totalCracked));
                 localStorage.setItem("pinCrackerXP", String(totalXP));
+                if (agentHandle) {
+                    fetch("/leaderboard", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ name: agentHandle, xp: totalXP })
+                    });
+                }
+
             }
             updateStatsDisplay();
             playWinSound();

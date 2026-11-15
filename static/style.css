@@ -1082,3 +1082,32 @@ body {
     color: var(--accent-cyan);
     font-weight: 800;
 }
+.footer-btn-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.lb-submit-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.lb-post-btn {
+    padding: 10px 14px;
+    font-size: 0.8rem;
+    white-space: nowrap;
+}
+
+.lb-rank-num {
+    color: var(--accent-amber);
+    font-weight: 800;
+    margin-right: 6px;
+}
+
+.lb-title-tag {
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    margin-left: 6px;
+}
