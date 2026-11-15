@@ -1249,3 +1249,42 @@ body.theme-crimson { --accent-cyan: #ff3d57; }
     text-decoration: line-through;
     opacity: 0.55;
 }
+.modal-card.rules-wide {
+    max-width: 540px;
+    max-height: 85vh;
+    overflow-y: auto;
+}
+
+.rules-section-title {
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 1px;
+    color: var(--accent-cyan);
+    margin: 14px 0 8px 0;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--panel-border);
+}
+
+.rules-list {
+    margin: 0;
+    padding-left: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    line-height: 1.45;
+}
+
+.rules-list strong {
+    color: #ffffff;
+}
+
+.rules-list code {
+    background: var(--inset-bg);
+    border: 1px solid var(--panel-border);
+    padding: 1px 5px;
+    border-radius: 4px;
+    color: var(--accent-cyan);
+    font-family: inherit;
+}

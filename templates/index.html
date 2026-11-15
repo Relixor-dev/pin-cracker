@@ -166,26 +166,46 @@
     </div>
 </div>
 
-<div class="modal-overlay hidden" id="leaderboard-modal" onclick="closeLeaderboard()">
-    <div class="modal-card" onclick="event.stopPropagation()">
+<div class="modal-overlay hidden" id="rules-modal" onclick="closeRules()">
+    <div class="modal-card rules-wide" onclick="event.stopPropagation()">
         <div class="modal-header">
-            <h2>// GLOBAL LEADERBOARDS</h2>
-            <button type="button" class="close-modal" onclick="closeLeaderboard()">&times;</button>
+            <h2>// BREACH PROTOCOL &amp; FIELD MANUAL</h2>
+            <button type="button" class="close-modal" onclick="closeRules()">&times;</button>
         </div>
-        <div class="segmented-group lb-tabs">
-            <button type="button" class="seg-btn active" id="lb-tab-xp" onclick="switchLeaderboardTab('xp')">TOP XP</button>
-            <button type="button" class="seg-btn" id="lb-tab-speed" onclick="switchLeaderboardTab('speed')">DAILY SPEEDRUN</button>
+
+        <div class="rules-section-title">1. TILE FEEDBACK</div>
+        <div class="example-row">
+            <span class="tile correct">7</span>
+            <span><strong>VERIFIED:</strong> Right digit in the exact slot.</span>
         </div>
-        <p class="modal-desc" id="lb-desc-text">Click any agent row to inspect their dossier.</p>
-        <div class="lb-submit-row" id="lb-xp-submit">
-            <input type="text" id="agent-handle-input" class="terminal-input" maxlength="14" placeholder="AGENT CODENAME">
-            <button type="button" class="launch-btn lb-post-btn" onclick="postScoreToLeaderboard()">SYNC XP</button>
+        <div class="example-row">
+            <span class="tile present">3</span>
+            <span><strong>SHIFTED:</strong> Digit is in the PIN, wrong slot.</span>
         </div>
-        <div class="ranks-list" id="leaderboard-list">
-            <div class="rank-row"><span>Loading global telemetry...</span></div>
+        <div class="example-row">
+            <span class="tile absent">9</span>
+            <span><strong>INVALID:</strong> Digit is not in the PIN.</span>
         </div>
+
+        <div class="rules-section-title">2. DEDUCTION TOOLS &amp; MANUAL CHECKER</div>
+        <ul class="rules-list">
+            <li><strong>Slot Pins (?):</strong> Click any <code>?</code> slot above the screen to manually cycle and pin suspected digits (0–9) per position.</li>
+            <li><strong>Manual Scratchpad:</strong> Use the left-panel notepad to jot down slot math or logic notes during a breach.</li>
+            <li><strong>Digit Matrix:</strong> Auto-tracks every tested number across guesses so you never re-test ruled-out digits.</li>
+            <li><strong>Emergency Decrypt:</strong> Sacrifice 1 attempt once per round to reveal an exact digit slot.</li>
+        </ul>
+
+        <div class="rules-section-title">3. GAME MODES &amp; FIREWALL MUTATORS</div>
+        <ul class="rules-list">
+            <li><strong>Progressive Clues:</strong> Starts with 1 clue and decrypts a new hint after each guess.</li>
+            <li><strong>Heist Ladder:</strong> Beat 3 escalating stages (3, 4, then 5 digits) on a shared 60s clock.</li>
+            <li><strong>Daily Vault &amp; Daily Speedrun:</strong> Global daily puzzles—one ranked by daily solves, one raced against the stopwatch.</li>
+            <li><strong>Create Friend Vault:</strong> Set a custom 3–6 digit PIN, pick 0–5 clues, and share a challenge link.</li>
+            <li><strong>Mutators:</strong> Toggle <em>No-Repeat</em>, <em>Time Drain (-2s/miss)</em>, or <em>Virus Jam</em> (jams 1 random key per miss) for bonus XP.</li>
+        </ul>
     </div>
 </div>
+
 <div class="modal-overlay hidden" id="rules-modal" onclick="closeRules()">
     <div class="modal-card" onclick="event.stopPropagation()">
         <div class="modal-header">
