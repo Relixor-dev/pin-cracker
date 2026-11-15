@@ -27,26 +27,6 @@
         <h1 class="start-title">PIN CRACKER</h1>
         <p class="start-subtitle">Analyze intercepted telemetry clues and bypass the keypad lock before security triggers.</p>
 
-        <!-- Config sections for Security Level, Attempts, Timer, and Mutators omitted for brevity; see raw code block or reply "next" for continuation -->
-
-        <div class="start-actions">
-            <button type="button" class="launch-btn" onclick="startGame('standard')">INITIATE BREACH &rarr;</button>
-            <div class="mode-grid">
-                <button type="button" class="mode-card-btn cyan" onclick="startGame('progressive')">PROGRESSIVE CLUES</button>
-                <button type="button" class="mode-card-btn red" onclick="startGame('heist')">HEIST LADDER (3 STAGES)</button>
-                <button type="button" class="mode-card-btn amber" id="daily-start-btn" onclick="startGame('daily')">
-                    DAILY VAULT ({{ daily_solves }} SOLVED)
-                </button>
-                <button type="button" class="mode-card-btn green" onclick="startGame('daily_speed')">DAILY SPEEDRUN</button>
-                <button type="button" class="mode-card-btn purple full-span" onclick="openCustomModal()">CREATE FRIEND VAULT</button>
-            </div>
-            <div class="footer-btn-row">
-                <button type="button" class="secondary-btn" onclick="openLeaderboard('xp')">LEADERBOARDS</button>
-                <button type="button" class="secondary-btn" onclick="openRules()">PROTOCOL / RULES</button>
-            </div>
-        </div>
-    </div>
-</div>
         <div class="config-section">
             <div class="config-label">SELECT SECURITY LEVEL</div>
             <div class="segmented-group" id="difficulty-group">
@@ -92,6 +72,25 @@
                 </button>
             </div>
         </div>
+
+        <div class="start-actions">
+            <button type="button" class="launch-btn" onclick="startGame('standard')">INITIATE BREACH &rarr;</button>
+            <div class="mode-grid">
+                <button type="button" class="mode-card-btn cyan" onclick="startGame('progressive')">PROGRESSIVE CLUES</button>
+                <button type="button" class="mode-card-btn red" onclick="startGame('heist')">HEIST LADDER (3 STAGES)</button>
+                <button type="button" class="mode-card-btn amber" id="daily-start-btn" onclick="startGame('daily')">
+                    DAILY VAULT ({{ daily_solves }} SOLVED)
+                </button>
+                <button type="button" class="mode-card-btn green" onclick="startGame('daily_speed')">DAILY SPEEDRUN</button>
+                <button type="button" class="mode-card-btn purple full-span" onclick="openCustomModal()">CREATE FRIEND VAULT</button>
+            </div>
+            <div class="footer-btn-row">
+                <button type="button" class="secondary-btn" onclick="openLeaderboard('xp')">LEADERBOARDS</button>
+                <button type="button" class="secondary-btn" onclick="openRules()">PROTOCOL / RULES</button>
+            </div>
+        </div>
+    </div>
+</div>
 <div class="modal-overlay hidden" id="profile-modal" onclick="closeProfileModal()">
     <div class="modal-card" onclick="event.stopPropagation()">
         <div class="modal-header">
@@ -152,6 +151,7 @@
         </div>
     </div>
 </div>
+
 <div class="modal-overlay hidden" id="ranks-modal" onclick="closeRanksModal()">
     <div class="modal-card" onclick="event.stopPropagation()">
         <div class="modal-header">
@@ -186,7 +186,6 @@
         </div>
     </div>
 </div>
-
 <div class="modal-overlay hidden" id="rules-modal" onclick="closeRules()">
     <div class="modal-card" onclick="event.stopPropagation()">
         <div class="modal-header">
@@ -208,8 +207,8 @@
         </div>
     </div>
 </div>
+
 <div class="game-container hidden" id="game-screen">
-    <!-- HUD Bar with status, timer, streak, sound, and menu toggles -->
     <div class="hud-bar">
         <div class="hud-left">
             <span class="status-dot pulse"></span>
@@ -225,7 +224,6 @@
     </div>
 
     <div class="workspace-grid">
-        <!-- Left Panel: Digit Matrix and Scratchpad -->
         <aside class="side-panel">
             <div class="side-title">// DIGIT MATRIX</div>
             <p class="side-desc">Auto-tracks tested numbers across guesses.</p>
@@ -239,7 +237,6 @@
             <textarea id="agent-notes-box" class="notes-textarea" rows="3" placeholder="Jot down slot logic or suspect digits..."></textarea>
         </aside>
 
-        <!-- Center Column: Calculator, Keypad, and Logs -->
         <main class="center-column">
             <div class="calculator" id="calculator-card">
                 <div class="telemetry-header">
@@ -269,11 +266,17 @@
                 </div>
 
                 <div class="keypad" id="keypad">
-                    <!-- Numeric and Control Keypad Buttons (0-9, CLR, ENT) -->
-                    {% for i in range(10) %}
-                    <button type="button" id="key-btn-{{ i }}" onmouseenter="playHover()" onclick="press('{{ i }}')">{{ i }}</button>
-                    {% endfor %}
+                    <button type="button" id="key-btn-1" onmouseenter="playHover()" onclick="press('1')">1</button>
+                    <button type="button" id="key-btn-2" onmouseenter="playHover()" onclick="press('2')">2</button>
+                    <button type="button" id="key-btn-3" onmouseenter="playHover()" onclick="press('3')">3</button>
+                    <button type="button" id="key-btn-4" onmouseenter="playHover()" onclick="press('4')">4</button>
+                    <button type="button" id="key-btn-5" onmouseenter="playHover()" onclick="press('5')">5</button>
+                    <button type="button" id="key-btn-6" onmouseenter="playHover()" onclick="press('6')">6</button>
+                    <button type="button" id="key-btn-7" onmouseenter="playHover()" onclick="press('7')">7</button>
+                    <button type="button" id="key-btn-8" onmouseenter="playHover()" onclick="press('8')">8</button>
+                    <button type="button" id="key-btn-9" onmouseenter="playHover()" onclick="press('9')">9</button>
                     <button type="button" class="btn-clear" onmouseenter="playHover()" onclick="clearScreen()">CLR</button>
+                    <button type="button" id="key-btn-0" onmouseenter="playHover()" onclick="press('0')">0</button>
                     <button type="button" class="btn-enter" onmouseenter="playHover()" onclick="submitGuess()">ENT</button>
                 </div>
             </div>
@@ -281,7 +284,6 @@
             <div class="log" id="log"></div>
         </main>
 
-        <!-- Right Panel: Breach Tools and Player Stats -->
         <aside class="side-panel">
             <div class="side-title">// BREACH TOOLS &amp; STATS</div>
             <button type="button" class="decrypt-btn" id="decrypt-btn" onmouseenter="playHover()" onclick="buyClue()">
