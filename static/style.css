@@ -1203,6 +1203,37 @@ body.theme-crimson { --accent-cyan: #ff3d57; }
 .badge-chip.earned { border-color: rgba(0, 230, 118, 0.4); color: var(--accent-green); }
 
 .lb-tabs { margin-bottom: 12px; }
+#lb-xp-submit {
+    display: grid;
+    grid-template-columns: max-content minmax(60px, 1fr) max-content;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+#lb-xp-submit .config-label {
+    margin: 0;
+    font-size: 0.62rem;
+    letter-spacing: 0.5px;
+}
+#lb-xp-submit .terminal-input {
+    min-width: 0;
+    padding: 7px 8px;
+    font-size: 0.78rem;
+}
+#lb-xp-submit .secondary-btn {
+    padding: 7px 9px;
+    font-size: 0.7rem;
+    letter-spacing: 0.4px;
+    white-space: nowrap;
+}
+@media (max-width: 420px) {
+    #lb-xp-submit {
+        grid-template-columns: minmax(0, 1fr) max-content;
+    }
+    #lb-xp-submit .config-label {
+        grid-column: 1 / -1;
+    }
+}
 .rank-row.clickable { cursor: pointer; }
 .rank-row.clickable:hover { border-color: var(--accent-cyan); }
 
