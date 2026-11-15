@@ -32,6 +32,54 @@ def get_daily_solves(today_str):
     except Exception:
         return 0
 
+LEADERBOARD_FILE = "leaderboard_local.json"
+
+def submit_leaderboard_score(handle, xp):
+    clean_name = "".join(c for c in str(handle) if c.isalnum() or c in "_-").upper()[:14]
+    if not clean_name:
+        clean_name = "ANON_AGENT"
+    score_val = max(0, int(xp))
+
+    res = _redis_cmd("ZADD", "pin_cracker_lb", "GT", score_val, clean_name)
+    if res is not None:
+        return get_leaderboard()
+
+    data = {}
+    if os.path.exists(LEADERBOARD_FILE):
+        try:
+            with open(LEADERBOARD_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception:
+            data = {}
+    if score_val > int(data.get(clean_name, 0)):
+        data[clean_name] = score_val
+        try:
+            with open(LEADERBOARD_FILE, "w", encoding="utf-8") as f:
+                json.dump(data, f)
+        except Exception:
+            pass
+    return get_leaderboard()
+
+def get_leaderboard():
+    raw = _redis_cmd("ZREVRANGE", "pin_cracker_lb", 0, 9, "WITHSCORES")
+    if isinstance(raw, list):
+        entries = []
+        for i in range(0, len(raw), 2):
+            if i + 1 < len(raw):
+                entries.append({"name": raw[i], "xp": int(float(raw[i + 1]))})
+        return entries
+
+    if not os.path.exists(LEADERBOARD_FILE):
+        return []
+    try:
+        with open(LEADERBOARD_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        sorted_items = sorted(data.items(), key=lambda x: x[1], reverse=True)[:10]
+        return [{"name": k, "xp": int(v)} for k, v in sorted_items]
+    except Exception:
+        return []
+
+
 def increment_daily_solves(today_str):
     data = {}
     if os.path.exists(DAILY_STATS_FILE):
@@ -375,7 +423,6 @@ def leaderboard():
         entries = submit_leaderboard_score(name, xp)
         return jsonify({"entries": entries})
     return jsonify({"entries": get_leaderboard()})
-
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080, debug=True, use_reloader=False)

@@ -295,12 +295,46 @@ async function openLeaderboard() {
     playTone(640, 0.06, "sine", 0.06);
     const modal = document.getElementById("leaderboard-modal");
     const input = document.getElementById("agent-handle-input");
+    const list = document.getElementById("leaderboard-list");
     if (input && agentHandle) input.value = agentHandle;
+    if (list) list.innerHTML = '<div class="rank-row"><span>Loading global telemetry...</span></div>';
     modal.classList.remove("hidden");
 
-    const res = await fetch("/leaderboard");
-    const data = await res.json();
-    renderLeaderboard(data.entries || []);
+    try {
+        const res = await fetch("/leaderboard");
+        if (!res.ok) throw new Error("Server returned " + res.status);
+        const data = await res.json();
+        renderLeaderboard(data.entries || []);
+    } catch (err) {
+        if (list) list.innerHTML = '<div class="rank-row"><span>Telemetry offline. Try again in a moment.</span></div>';
+    }
+}
+
+function closeLeaderboard() {
+    document.getElementById("leaderboard-modal").classList.add("hidden");
+}
+
+async function postScoreToLeaderboard() {
+    const input = document.getElementById("agent-handle-input");
+    const list = document.getElementById("leaderboard-list");
+    const raw = (input ? input.value.trim() : "") || "ANON_AGENT";
+    agentHandle = raw.replace(/[^a-zA-Z0-9_-]/g, "").toUpperCase().slice(0, 14) || "ANON_AGENT";
+    localStorage.setItem("pinCrackerHandle", agentHandle);
+    if (input) input.value = agentHandle;
+
+    playTone(760, 0.1, "triangle", 0.07);
+    try {
+        const res = await fetch("/leaderboard", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: agentHandle, xp: totalXP })
+        });
+        if (!res.ok) throw new Error("Server returned " + res.status);
+        const data = await res.json();
+        renderLeaderboard(data.entries || []);
+    } catch (err) {
+        if (list) list.innerHTML = '<div class="rank-row"><span>Sync failed. Refresh and try again.</span></div>';
+    }
 }
 
 function closeLeaderboard() {
