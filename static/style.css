@@ -1319,3 +1319,36 @@ body.theme-crimson { --accent-cyan: #ff3d57; }
     color: var(--accent-cyan);
     font-family: inherit;
 }
+
+.mode-card-btn.duel-btn {
+    background: rgba(255, 61, 87, 0.14);
+    color: #ff6b81;
+    border: 1px solid rgba(255, 61, 87, 0.45);
+}
+.mode-card-btn.duel-btn:hover { background: rgba(255, 61, 87, 0.25); }
+
+.duel-status-box {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: rgba(0, 229, 255, 0.08);
+    border: 1px solid rgba(0, 229, 255, 0.35);
+    color: var(--accent-cyan);
+    font-size: 0.78rem;
+    text-align: center;
+    font-weight: 700;
+}
+
+.duel-banner {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(255, 61, 87, 0.12);
+    border: 1px solid rgba(255, 61, 87, 0.45);
+    border-radius: 8px;
+    padding: 8px 12px;
+    margin-bottom: 12px;
+    font-size: 0.75rem;
+    color: #ff8fa0;
+}
+.duel-banner strong { color: #ffffff; }

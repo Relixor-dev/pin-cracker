@@ -14,7 +14,7 @@ A retro-futuristic, vault-cracking deduction game built with **Python (Flask)**,
 * **Heist Ladder (3 Stages):** Escalate from a 3-digit gate (5 tries) to a 4-digit laser grid (4 tries) and a 5-digit core (3 tries) on a shared 60-second clock.
 * **Create Friend Vault:** Set your own 3-to-6 digit PIN, pick 0 to 5 auto-generated clues, add a custom note, and generate a shareable challenge URL.
 * **Firewall Mutators & Emergency Decrypt:** Toggle **No-Repeat Digits** or **Time Drain (-2s/miss)** for bonus XP, or sacrifice 1 remaining attempt once per round to reveal an exact digit slot.
-* **10 Clearance Ranks & Global Top-10 Leaderboard:** Earn XP on every breach to climb from **Script Kiddie** to **Zero-Day Sovereign** and sync your codename to the global **Upstash Redis** leaderboard.
+* **10 Clearance Ranks & Global Top-10 Leaderboard:** Earn reduced XP on eligible breaches to climb from **Script Kiddie** to **Zero-Day Sovereign**; the daily speedrun awards no XP and remains ranked by time. Sync your codename to the global **Upstash Redis** leaderboard.
 
 ---
 

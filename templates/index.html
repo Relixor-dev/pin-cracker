@@ -62,13 +62,13 @@
             <div class="config-label">FIREWALL MUTATORS (+XP BONUS)</div>
             <div class="mutator-grid three-col">
                 <button type="button" class="mutator-btn" id="mut-norepeat" onclick="toggleMutator('noRepeat', this)">
-                    NO-REPEAT (+10 XP)
+                    NO-REPEAT (+3 XP)
                 </button>
                 <button type="button" class="mutator-btn" id="mut-timedrain" onclick="toggleMutator('timeDrain', this)">
-                    TIME DRAIN (+15 XP)
+                    TIME DRAIN (+5 XP)
                 </button>
                 <button type="button" class="mutator-btn" id="mut-virus" onclick="toggleMutator('virusJam', this)">
-                    VIRUS JAM (+20 XP)
+                    VIRUS JAM (+6 XP)
                 </button>
             </div>
         </div>
@@ -83,6 +83,7 @@
                 </button>
                 <button type="button" class="mode-card-btn green" onclick="startGame('daily_speed')">DAILY SPEEDRUN</button>
                 <button type="button" class="mode-card-btn purple full-span" onclick="openCustomModal()">CREATE FRIEND VAULT</button>
+                <button type="button" class="mode-card-btn duel-btn" onclick="openDuelModal()">LIVE 1V1 DUEL</button>
             </div>
             <div class="footer-btn-row">
                 <button type="button" class="secondary-btn" onclick="openLeaderboard('xp')">LEADERBOARDS</button>
@@ -91,7 +92,7 @@
         </div>
     </div>
 </div>
-<div class="modal-overlay hidden" id="profile-modal" onclick="closeProfileModal()">
+<div class=z"modal-overlay hidden" id="profile-modal" onclick="closeProfileModal()">
     <div class="modal-card" onclick="event.stopPropagation()">
         <div class="modal-header">
             <h2>// AGENT DOSSIER</h2>
@@ -186,6 +187,26 @@
     </div>
 </div>
 
+<div class="modal-overlay hidden" id="duel-modal" onclick="closeDuelModal()">
+    <div class="modal-card" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h2>// LIVE 1V1 HEAD-TO-HEAD DUEL</h2>
+            <button type="button" class="close-modal" onclick="closeDuelModal()">&times;</button>
+        </div>
+        <p class="modal-desc">Race another agent on the exact same 4-digit PIN. First to crack it wins!</p>
+        <div class="config-section">
+            <div class="config-label">YOUR DUEL CODENAME</div>
+            <input type="text" id="duel-handle-input" class="terminal-input" maxlength="14" placeholder="AGENT CODENAME">
+        </div>
+        <div class="start-actions">
+            <button type="button" class="launch-btn" id="matchmake-btn" onclick="toggleMatchmaking()">FIND ONLINE MATCH</button>
+            <button type="button" class="secondary-btn" onclick="createPrivateDuelLink()">CREATE PRIVATE DUEL LINK</button>
+        </div>
+        <div class="duel-status-box hidden" id="duel-queue-status">Scanning global queue for online agents...</div>
+    </div>
+</div>
+
+
 <div class="modal-overlay hidden" id="rules-modal" onclick="closeRules()">
     <div class="modal-card rules-wide" onclick="event.stopPropagation()">
         <div class="modal-header">
@@ -220,7 +241,7 @@
         <ul class="rules-list">
             <li><strong>Progressive Clues:</strong> Starts with 1 clue and decrypts a new hint after each guess.</li>
             <li><strong>Heist Ladder:</strong> Beat 3 escalating stages (3, 4, then 5 digits) on a shared 60s clock.</li>
-            <li><strong>Daily Vault &amp; Daily Speedrun:</strong> Global daily puzzles—one ranked by daily solves, one raced against the stopwatch.</li>
+            <li><strong>Daily Vault &amp; Daily Speedrun:</strong> Global daily puzzles—one ranked by daily solves, one raced against the stopwatch with no XP reward.</li>
             <li><strong>Create Friend Vault:</strong> Set a custom 3–6 digit PIN, pick 0–5 clues, and share a challenge link.</li>
             <li><strong>Mutators:</strong> Toggle <em>No-Repeat</em>, <em>Time Drain (-2s/miss)</em>, or <em>Virus Jam</em> (jams 1 random key per miss) for bonus XP.</li>
         </ul>
@@ -233,7 +254,7 @@
             <h2>// BREACH PROTOCOL</h2>
             <button type="button" class="close-modal" onclick="closeRules()">&times;</button>
         </div>
-        <p class="modal-desc"><strong>Daily Speedrun:</strong> Race the stopwatch on a separate daily 4-digit PIN.<br><strong>Virus Jam:</strong> Wrong guesses jam one random keypad digit for 1 turn.<br><strong>Slot Pins:</strong> Click any blank slot above the screen to pin suspected digits.</p>
+        <p class="modal-desc"><strong>Daily Speedrun:</strong> Race the stopwatch on a separate daily 4-digit PIN; it awards no XP.<br><strong>Virus Jam:</strong> Wrong guesses jam one random keypad digit for 1 turn.<br><strong>Slot Pins:</strong> Click any blank slot above the screen to pin suspected digits.</p>
         <div class="example-row">
             <span class="tile correct">7</span>
             <span><strong>VERIFIED:</strong> Correct digit in the exact slot.</span>
@@ -280,6 +301,10 @@
 
         <main class="center-column">
             <div class="calculator" id="calculator-card">
+                <div class="duel-banner hidden" id="duel-banner">
+                    <span id="duel-opp-label">OPPONENT: SCANNING...</span>
+                    <strong id="duel-opp-stats">0 GUESSES</strong>
+                </div>
                 <div class="telemetry-header">
                     <div class="telemetry-item">
                         <span class="tele-label">SYSTEM STATUS</span>

@@ -25,6 +25,11 @@ let timeRemaining = 0;
 let speedrunElapsed = 0;
 let speedrunTimerInterval = null;
 
+let duelRoomId = null;
+let duelRole = "host";
+let duelPollInterval = null;
+let matchmakeInterval = null;
+
 let gameOver = false;
 let isSubmitting = false;
 let decryptUsed = false;
@@ -156,6 +161,11 @@ window.addEventListener("DOMContentLoaded", function() {
                 startGame("custom");
             }
         } catch (err) {}
+    }
+
+    const duelCode = params.get("duel");
+    if (duelCode) {
+        joinDuelRoom(duelCode);
     }
 });
 
@@ -609,6 +619,180 @@ function closeRules() { document.getElementById("rules-modal").classList.add("hi
 function openCustomModal() { document.getElementById("custom-modal").classList.remove("hidden"); }
 function closeCustomModal() { document.getElementById("custom-modal").classList.add("hidden"); }
 
+function openDuelModal() {
+    playTone(640, 0.06, "sine", 0.06);
+    const input = document.getElementById("duel-handle-input");
+    if (input && agentHandle) input.value = agentHandle;
+    document.getElementById("duel-modal").classList.remove("hidden");
+}
+
+function closeDuelModal() {
+    stopMatchmaking();
+    document.getElementById("duel-modal").classList.add("hidden");
+}
+
+function getDuelCodename() {
+    const input = document.getElementById("duel-handle-input");
+    const raw = (input ? input.value.trim() : "") || agentHandle || "AGENT_" + Math.floor(100 + Math.random() * 899);
+    agentHandle = raw.replace(/[^a-zA-Z0-9_-]/g, "").toUpperCase().slice(0, 14) || "ANON_AGENT";
+    localStorage.setItem("pinCrackerHandle", agentHandle);
+    if (input) input.value = agentHandle;
+    return agentHandle;
+}
+
+function stopMatchmaking() {
+    if (matchmakeInterval) { clearInterval(matchmakeInterval); matchmakeInterval = null; }
+    const btn = document.getElementById("matchmake-btn");
+    const box = document.getElementById("duel-queue-status");
+    if (btn) btn.innerText = "FIND ONLINE MATCH";
+    if (box) box.classList.add("hidden");
+    if (agentHandle) {
+        fetch("/duel/cancel", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: agentHandle })
+        });
+    }
+}
+
+async function toggleMatchmaking() {
+    if (matchmakeInterval) { stopMatchmaking(); return; }
+    const name = getDuelCodename();
+    const btn = document.getElementById("matchmake-btn");
+    const box = document.getElementById("duel-queue-status");
+    btn.innerText = "CANCEL SEARCH";
+    box.classList.remove("hidden");
+    box.innerText = "Scanning global queue for online agents...";
+
+    const pollQueue = async function() {
+        const res = await fetch("/duel/matchmake", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: name })
+        });
+        const data = await res.json();
+        if (data.status === "matched") {
+            clearInterval(matchmakeInterval);
+            matchmakeInterval = null;
+            box.classList.add("hidden");
+            btn.innerText = "FIND ONLINE MATCH";
+            document.getElementById("duel-modal").classList.add("hidden");
+            await joinDuelRoom(data.room_id);
+            return true;
+        }
+        return false;
+    };
+    if (!await pollQueue()) matchmakeInterval = setInterval(pollQueue, 2000);
+}
+
+async function createPrivateDuelLink() {
+    const name = getDuelCodename();
+    const res = await fetch("/duel/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name })
+    });
+    const data = await res.json();
+    const url = window.location.origin + "/?duel=" + data.room_id;
+    navigator.clipboard.writeText(url);
+    playTone(740, 0.1, "triangle", 0.07);
+    alert("Private Duel link copied! Entering room now, send the link to your friend.");
+    document.getElementById("duel-modal").classList.add("hidden");
+    await joinDuelRoom(data.room_id);
+}
+
+async function joinDuelRoom(roomId) {
+    const name = agentHandle || ("AGENT_" + Math.floor(100 + Math.random() * 899));
+    const res = await fetch("/duel/join", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ room_id: roomId, name: name })
+    });
+    const data = await res.json();
+    if (data.error) { alert(data.error); return; }
+
+    gameMode = "duel";
+    duelRoomId = data.room_id;
+    duelRole = data.role;
+    pinLength = 4;
+    maxAttempts = 0;
+    guessHistory = [];
+    gameOver = false;
+    current = "";
+
+    document.getElementById("start-screen").classList.add("hidden");
+    document.getElementById("game-screen").classList.remove("hidden");
+    document.getElementById("duel-banner").classList.remove("hidden");
+    document.getElementById("log").innerHTML = "";
+
+    const hintsList = document.getElementById("hints-list");
+    hintsList.innerHTML = "";
+    data.hints.forEach(function(h) {
+        const li = document.createElement("li");
+        li.innerText = h;
+        hintsList.appendChild(li);
+    });
+
+    setKeypadDisabled(false);
+    setLockStatus("DUEL LIVE", "status-locked");
+    resetDigitMatrix();
+    buildSlotPins();
+    updateScreen();
+    updateAttemptsDisplay(0, 0);
+    startSpeedrunStopwatch();
+    updateStatsDisplay();
+    startDuelPolling();
+}
+
+function startDuelPolling() {
+    if (duelPollInterval) clearInterval(duelPollInterval);
+    const syncOnce = async function() {
+        if (gameMode !== "duel" || !duelRoomId) { clearInterval(duelPollInterval); return; }
+        const res = await fetch("/duel/sync", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                room_id: duelRoomId,
+                role: duelRole,
+                attempts: guessHistory.length,
+                won: false,
+                elapsed: speedrunElapsed
+            })
+        });
+        const data = await res.json();
+        if (data.error) return;
+
+        document.getElementById("duel-opp-label").innerText = "VS: " + data.opponent;
+        document.getElementById("duel-opp-stats").innerText = data.opponent_attempts + " GUESSES";
+
+        if (data.winner && !gameOver) {
+            gameOver = true;
+            stopTimer();
+            clearInterval(duelPollInterval);
+            setKeypadDisabled(true);
+            setLockStatus("DEFEATED", "danger");
+            triggerCalcEffect("shake-alarm");
+            playLoseSound();
+
+            const screen = document.getElementById("screen");
+            screen.classList.add("locked");
+            screen.innerText = "CODE: " + data.secret;
+
+            const log = document.getElementById("log");
+            const entry = document.createElement("div");
+            entry.className = "log-entry lose";
+            entry.innerHTML = "<span>" + data.winner + " CRACKED IT FIRST (" + data.win_time + "s)</span>";
+            const actions = document.createElement("div");
+            actions.className = "action-group";
+            actions.appendChild(buildMenuButton());
+            entry.appendChild(actions);
+            log.prepend(entry);
+        }
+    };
+    syncOnce();
+    duelPollInterval = setInterval(syncOnce, 1800);
+}
+
 function readCustomInputs() {
     const pin = document.getElementById("custom-pin-input").value.trim();
     const note = document.getElementById("custom-note-input").value.trim();
@@ -653,6 +837,12 @@ function backToMenu() {
     playTone(330, 0.08, "sine", 0.06);
     stopTimer();
     clearVirusJam();
+    
+    if (duelPollInterval) { clearInterval(duelPollInterval); duelPollInterval = null; }
+    const duelBanner = document.getElementById("duel-banner");
+    if (duelBanner) duelBanner.classList.add("hidden");
+    duelRoomId = null;
+    
     gameOver = false;
     isSubmitting = false;
     current = "";
@@ -760,8 +950,8 @@ function buildShareButton(attemptsUsed, maxTries, won) {
     btn.innerText = "SHARE";
     btn.onclick = function() {
         const header = gameMode === "daily_speed"
-            ? "PIN CRACKER // Daily Speedrun (" + speedrunElapsed.toFixed(1) + "s)"
-            : (gameMode === "daily" ? "PIN CRACKER // Daily Vault (" + dailyDateStr + ")" : "PIN CRACKER [" + gameMode.toUpperCase() + "]");
+            ? "PIN DECIPHERER // Daily Speedrun (" + speedrunElapsed.toFixed(1) + "s)"
+            : (gameMode === "daily" ? "PIN DECIPHERER // Daily Vault (" + dailyDateStr + ")" : "PIN DECIPHERER [" + gameMode.toUpperCase() + "]");
         const score = won ? (attemptsUsed + "/" + (maxTries || "∞")) : "X/" + (maxTries || "∞");
         const rows = guessHistory.map(function(statuses) {
             return statuses.map(function(s) {
@@ -859,13 +1049,31 @@ async function submitGuess() {
             triggerCalcEffect("pulse-win");
 
             if (typeof data.daily_solves === "number") dailySolvesCount = data.daily_solves;
+            
+            if (gameMode === "duel" && duelRoomId) {
+                if (duelPollInterval) clearInterval(duelPollInterval);
+                fetch("/duel/sync", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        room_id: duelRoomId,
+                        role: duelRole,
+                        attempts: data.attempts,
+                        won: true,
+                        elapsed: speedrunElapsed
+                    })
+                });
+            }
 
-            let earnedXP = 15 + (pinLength * 8);
-            if (mutNoRepeat) earnedXP += 10;
-            if (mutTimeDrain && selectedTimerSeconds > 0) earnedXP += 15;
-            if (mutVirusJam) earnedXP += 20;
-            if (gameMode === "daily" || gameMode === "daily_speed") earnedXP += 25;
-            if (gameMode === "heist" && heistStage === 3) earnedXP += 45;
+            let earnedXP = 0;
+            if (gameMode !== "daily_speed") {
+                earnedXP = Math.floor((15 + (pinLength * 8)) / 3);
+                if (mutNoRepeat) earnedXP += 3;
+                if (mutTimeDrain && selectedTimerSeconds > 0) earnedXP += 5;
+                if (mutVirusJam) earnedXP += 6;
+                if (gameMode === "daily") earnedXP += 8;
+                if (gameMode === "heist" && heistStage === 3) earnedXP += 15;
+            }
 
             if (!isHeistAdvance) {
                 winStreak += 1;
@@ -914,7 +1122,7 @@ async function submitGuess() {
             entry.classList.add("win");
             statusText.innerText = isHeistAdvance
                 ? ("STAGE " + heistStage + " BYPASSED!")
-                : (gameMode === "daily_speed" ? ("TIME: " + speedrunElapsed.toFixed(1) + "s (+" + earnedXP + " XP)") : ("GRANTED +" + earnedXP + " XP"));
+                : (gameMode === "daily_speed" ? ("TIME: " + speedrunElapsed.toFixed(1) + "s (NO XP)") : ("GRANTED +" + earnedXP + " XP"));
             entry.appendChild(statusText);
 
             const winActions = document.createElement("div");
