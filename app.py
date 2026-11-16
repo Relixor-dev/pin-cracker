@@ -4,6 +4,7 @@ import random
 from datetime import date
 import requests
 from flask import Flask, render_template, request, jsonify, session
+from flask import send_from_directory
 
 app = Flask(__name__)
 app.secret_key = "pin-cracker-secret-key"
@@ -349,7 +350,7 @@ def index():
 
 @app.route("/favicon.ico")
 def favicon():
-    return redirect(url_for("static", filename="favicon.svg"))
+    return send_from_directory("static", "favicon.png", mimetype="image/png")
 
 @app.route("/guess", methods=["POST"])
 def guess():
