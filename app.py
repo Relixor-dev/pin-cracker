@@ -347,6 +347,10 @@ def index():
     info = start_new_session("normal", 8, "standard")
     return render_template("index.html", hints=info["hints"], length=info["length"], daily_solves=daily_solves)
 
+@app.route("/favicon.ico")
+def favicon():
+    return redirect(url_for("static", filename="favicon.svg"))
+
 @app.route("/guess", methods=["POST"])
 def guess():
     data = request.get_json()
