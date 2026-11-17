@@ -1215,6 +1215,13 @@ body.theme-crimson { --accent-cyan: #ff3d57; }
     font-size: 0.62rem;
     letter-spacing: 0.5px;
 }
+.agent-name-note {
+    display: block;
+    margin: -8px 0 12px;
+    color: var(--text-muted);
+    font-size: 0.80rem;
+    line-height: 1.4;
+}
 #lb-xp-submit .terminal-input {
     min-width: 0;
     padding: 7px 8px;
