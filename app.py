@@ -162,6 +162,7 @@ def _create_duel_room(host_name, guest_name=None):
     hints = generate_hints(code, None, total_count=3)
     room_data = {
         "room_id": room_id,
+        "round": 1,
         "code": code,
         "hints": hints,
         "host": host_name,
@@ -482,27 +483,25 @@ def duel_matchmake():
     data = request.get_json() or {}
     handle = "".join(c for c in str(data.get("name", "ANON_AGENT")) if c.isalnum() or c in "_-").upper()[:14] or "ANON_AGENT"
 
-    matched_raw = _redis_cmd("GET", f"duel_matched:{handle}")
+    matched_raw = _redis_cmd("GETDEL", f"duel_matched:{handle}")
     if matched_raw:
-        _redis_cmd("DEL", f"duel_matched:{handle}")
         room = _get_duel_room(matched_raw)
         if room:
             return jsonify({"status": "matched", "room_id": room["room_id"], "role": "host", "opponent": room["guest"]})
 
-    waiting_raw = _redis_cmd("GET", "duel_queue_waiting")
+    waiting_raw = _redis_cmd("GETDEL", "duel_queue_waiting")
     if waiting_raw:
         try:
             waiting = json.loads(waiting_raw)
             wait_name = waiting.get("name")
             if wait_name and wait_name != handle:
-                _redis_cmd("DEL", "duel_queue_waiting")
                 room = _create_duel_room(wait_name, handle)
                 _redis_cmd("SETEX", f"duel_matched:{wait_name}", "60", room["room_id"])
                 return jsonify({"status": "matched", "room_id": room["room_id"], "role": "guest", "opponent": wait_name})
         except Exception:
             pass
 
-    _redis_cmd("SETEX", "duel_queue_waiting", "20", json.dumps({"name": handle}))
+    _redis_cmd("SET", "duel_queue_waiting", json.dumps({"name": handle}), "EX", "15", "NX")
     return jsonify({"status": "waiting"})
 
 @app.route("/duel/cancel", methods=["POST"])
@@ -510,7 +509,7 @@ def duel_cancel():
     data = request.get_json() or {}
     handle = "".join(c for c in str(data.get("name", "")) if c.isalnum() or c in "_-").upper()[:14]
     waiting_raw = _redis_cmd("GET", "duel_queue_waiting")
-    if waiting_raw and handle in waiting_raw:
+    if waiting_raw and f'"{handle}"' in waiting_raw:
         _redis_cmd("DEL", "duel_queue_waiting")
     return jsonify({"status": "cancelled"})
 
@@ -581,6 +580,18 @@ def duel_sync():
             room["winner"] = room["guest"]
             room["win_time"] = round(elapsed, 1)
 
+    return jsonify({
+        "round": room.get("round", 1),
+        "ready": bool(room["host"] and room["guest"]),
+        "opponent": opp_name or "WAITING FOR OPPONENT...",
+        "opponent_attempts": opp_attempts,
+        "winner": room["winner"],
+        "win_time": room["win_time"],
+        "secret": room["code"] if room["winner"] else None,
+        "hints": room["hints"]
+    })
+
+
     _save_duel_room(room)
     opp_name = room["guest"] if role == "host" else room["host"]
     opp_attempts = room["guest_attempts"] if role == "host" else room["host_attempts"]
@@ -593,6 +604,43 @@ def duel_sync():
         "secret": room["code"] if room["winner"] else None
     })
 
+@app.route("/duel/status")
+def duel_status():
+    waiting_raw = _redis_cmd("GET", "duel_queue_waiting")
+    return jsonify({"in_queue": 1 if waiting_raw else 0})
+
+@app.route("/duel/rematch", methods=["POST"])
+def duel_rematch():
+    data = request.get_json() or {}
+    room_id = str(data.get("room_id", "")).strip().upper()
+    room = _get_duel_room(room_id)
+    if not room:
+        return jsonify({"error": "Duel room expired."})
+
+    if room.get("winner") is not None:
+        code = generate_code(4, None, False)
+        room["round"] = int(room.get("round", 1)) + 1
+        room["code"] = code
+        room["hints"] = generate_hints(code, None, total_count=3)
+        room["host_attempts"] = 0
+        room["guest_attempts"] = 0
+        room["winner"] = None
+        room["win_time"] = None
+        _save_duel_room(room)
+
+    session["code"] = room["code"]
+    session["mode"] = "duel"
+    session["length"] = 4
+    session["max_attempts"] = 0
+    session["attempts"] = 0
+    session["revealed_slots"] = []
+    session["hidden_hints"] = []
+    session["no_repeat"] = False
+
+    return jsonify({
+        "round": room["round"],
+        "hints": room["hints"]
+    })
 
 @app.route("/reset", methods=["POST"])
 def reset():

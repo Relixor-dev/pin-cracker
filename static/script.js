@@ -29,6 +29,7 @@ let duelRoomId = null;
 let duelRole = "host";
 let duelPollInterval = null;
 let matchmakeInterval = null;
+let duelRound = 1;
 
 let gameOver = false;
 let isSubmitting = false;
@@ -137,11 +138,134 @@ function triggerCalcEffect(className) {
     card.classList.add(className);
 }
 
+async function pollQueueStatus() {
+    const startScreen = document.getElementById("start-screen");
+    const btn = document.getElementById("live-duel-btn");
+    if (!btn || (startScreen && startScreen.classList.contains("hidden"))) return;
+    try {
+        const res = await fetch("/duel/status");
+        const data = await res.json();
+        if (data.in_queue > 0) {
+            btn.innerText = "LIVE 1V1 DUEL (1 IN QUEUE)";
+            btn.classList.add("has-queue");
+        } else {
+            btn.innerText = "LIVE 1V1 DUEL";
+            btn.classList.remove("has-queue");
+        }
+    } catch (e) {}
+}
+
+function stopMatchmaking() {
+    if (matchmakeInterval) { clearInterval(matchmakeInterval); matchmakeInterval = null; }
+    const btn = document.getElementById("matchmake-btn");
+    const box = document.getElementById("duel-queue-status");
+    const input = document.getElementById("duel-handle-input");
+    if (input) input.disabled = false;
+    if (btn) btn.innerText = "FIND ONLINE MATCH";
+    if (box) box.classList.add("hidden");
+    if (agentHandle) {
+        fetch("/duel/cancel", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: agentHandle })
+        });
+    }
+}
+
+async function toggleMatchmaking() {
+    if (matchmakeInterval) { stopMatchmaking(); return; }
+    const name = getDuelCodename();
+    const btn = document.getElementById("matchmake-btn");
+    const box = document.getElementById("duel-queue-status");
+    const input = document.getElementById("duel-handle-input");
+    if (input) input.disabled = true;
+    btn.innerText = "CANCEL SEARCH";
+    box.classList.remove("hidden");
+    box.innerText = "Scanning global queue for online agents...";
+
+    let isMatchLocked = false;
+    const pollQueue = async function() {
+        if (isMatchLocked || gameMode === "duel") return;
+        const res = await fetch("/duel/matchmake", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: name })
+        });
+        const data = await res.json();
+        if (isMatchLocked || gameMode === "duel") return;
+
+        if (data.status === "matched") {
+            isMatchLocked = true;
+            clearInterval(matchmakeInterval);
+            matchmakeInterval = null;
+            if (input) input.disabled = false;
+            box.classList.add("hidden");
+            btn.innerText = "FIND ONLINE MATCH";
+            document.getElementById("duel-modal").classList.add("hidden");
+            await joinDuelRoom(data.room_id);
+        }
+    };
+    await pollQueue();
+    if (!isMatchLocked) {
+        matchmakeInterval = setInterval(pollQueue, 2000);
+    }
+}
+
+
+function buildDuelRematchButton() {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "reset-btn";
+    btn.innerText = "REMATCH";
+    btn.onclick = requestDuelRematch;
+    return btn;
+}
+
+async function requestDuelRematch() {
+    if (!duelRoomId) return;
+    const res = await fetch("/duel/rematch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ room_id: duelRoomId })
+    });
+    const data = await res.json();
+    if (data.error) { alert(data.error); backToMenu(); return; }
+    startDuelRoundUI(data.round, data.hints);
+}
+
+function startDuelRoundUI(roundNum, hints) {
+    duelRound = roundNum;
+    guessHistory = [];
+    gameOver = false;
+    current = "";
+    document.getElementById("log").innerHTML = "";
+
+    const hintsList = document.getElementById("hints-list");
+    hintsList.innerHTML = "";
+    hints.forEach(function(h) {
+        const li = document.createElement("li");
+        li.innerText = h;
+        hintsList.appendChild(li);
+    });
+
+    setKeypadDisabled(false);
+    setLockStatus("DUEL R" + duelRound, "status-locked");
+    resetDigitMatrix();
+    buildSlotPins();
+    updateScreen();
+    updateAttemptsDisplay(0, 0);
+    startSpeedrunStopwatch();
+    startDuelPolling();
+}
+
 window.addEventListener("DOMContentLoaded", function() {
     const screenEl = document.getElementById("screen");
     pinLength = parseInt(screenEl.dataset.length, 10) || 4;
     const solvesEl = document.getElementById("stat-daily-solves");
     if (solvesEl) dailySolvesCount = parseInt(solvesEl.innerText || "0", 10);
+
+    pollQueueStatus();
+    setInterval(pollQueueStatus, 6000);
 
     applySavedTheme();
     buildDigitMatrix();
@@ -714,6 +838,7 @@ async function joinDuelRoom(roomId) {
     gameMode = "duel";
     duelRoomId = data.room_id;
     duelRole = data.role;
+    duelRound = 1
     pinLength = 4;
     maxAttempts = 0;
     guessHistory = [];
@@ -761,6 +886,11 @@ function startDuelPolling() {
         });
         const data = await res.json();
         if (data.error) return;
+        
+        if (data.round && data.round > duelRound) {
+            await requestDuelRematch();
+            return;
+        }
 
         document.getElementById("duel-opp-label").innerText = "VS: " + data.opponent;
         document.getElementById("duel-opp-stats").innerText = data.opponent_attempts + " GUESSES";
@@ -784,6 +914,10 @@ function startDuelPolling() {
             entry.innerHTML = "<span>" + data.winner + " CRACKED IT FIRST (" + data.win_time + "s)</span>";
             const actions = document.createElement("div");
             actions.className = "action-group";
+            actions.appendChild(buildDuelRematchButton()); // <-- ADD REMATCH BUTTON HERE
+            actions.appendChild(buildMenuButton());
+            entry.appendChild(actions);
+            log.prepend(entry);
             actions.appendChild(buildMenuButton());
             entry.appendChild(actions);
             log.prepend(entry);
@@ -1129,12 +1263,17 @@ async function submitGuess() {
             winActions.className = "action-group";
             if (isHeistAdvance) {
                 winActions.appendChild(buildResetButton("STAGE " + (heistStage + 1) + " →", heistStage + 1));
+            } else if (gameMode === "duel") {
+                winActions.appendChild(buildShareButton(data.attempts, data.max_attempts, true));
+                winActions.appendChild(buildDuelRematchButton());
+                winActions.appendChild(buildMenuButton());
             } else {
                 winActions.appendChild(buildShareButton(data.attempts, data.max_attempts, true));
                 winActions.appendChild(buildResetButton("NEXT VAULT", gameMode === "heist" ? 1 : null));
                 winActions.appendChild(buildMenuButton());
             }
             entry.appendChild(winActions);
+
         } else if (data.lost) {
             gameOver = true;
             clearVirusJam();
