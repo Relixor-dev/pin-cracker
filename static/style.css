@@ -1373,3 +1373,43 @@ body.theme-crimson { --accent-cyan: #ff3d57; }
     margin-bottom: 6px;
     text-align: left;
 }
+
+.keypad button, .seg-btn, .mode-card-btn, .launch-btn, .secondary-btn {
+    touch-action: manipulation;
+}
+
+.duel-btn.has-queue {
+    box-shadow: 0 0 12px rgba(255, 61, 87, 0.45);
+    border-color: #ff6b81;
+}
+
+@media (max-width: 900px) {
+    body {
+        padding: 10px;
+    }
+    .workspace-grid {
+        grid-template-columns: 1fr;
+        gap: 14px;
+    }
+    .center-column {
+        order: 1;
+    }
+    .workspace-grid > .side-panel:first-child {
+        order: 2;
+    }
+    .workspace-grid > .side-panel:last-child {
+        order: 3;
+    }
+    .hud-bar {
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 10px 12px;
+    }
+    .keypad button {
+        padding: 16px 0;
+        font-size: 1.25rem;
+    }
+    .mode-grid, .footer-btn-row, .mutator-grid.three-col {
+        grid-template-columns: 1fr;
+    }
+}
