@@ -30,6 +30,11 @@ let duelRole = "host";
 let duelPollInterval = null;
 let matchmakeInterval = null;
 let duelRound = 1;
+let selectedDuelLength = 4;
+let selectedDuelTimer = 0;
+let duelTimerLimit = 0;
+let explorerModesCleared = JSON.parse(localStorage.getItem("pinDeciphererExplorer") || "[]");
+
 
 let gameOver = false;
 let isSubmitting = false;
@@ -73,8 +78,14 @@ const BADGES = [
     { id: "clutch", name: "CLUTCH SPECIALIST", desc: "Win with under 2.0s remaining" },
     { id: "streak_5", name: "UNTOUCHABLE", desc: "Reach a 5-win streak" },
     { id: "extreme_6", name: "6-DIGIT MASTER", desc: "Crack a 6-digit vault" },
-    { id: "virus_clear", name: "ANTIVIRUS", desc: "Win with Virus Jam enabled" }
+    { id: "virus_clear", name: "ANTIVIRUS", desc: "Win with Virus Jam enabled" },
+    { id: "duelist", name: "DUELIST", desc: "Win your first Live 1v1 Duel" },
+    { id: "speed_demon", name: "SPEED DEMON", desc: "Finish Daily Speedrun in under 15.0s" },
+    { id: "heist_master", name: "HEIST MASTERMIND", desc: "Clear all 3 stages of Heist Ladder" },
+    { id: "centurion", name: "CENTURION", desc: "Crack 100 total vaults" },
+    { id: "explorer", name: "EXPLORER", desc: "Complete Daily Vault, Daily Speedrun, Heist Ladder, and win a 1v1 Duel" }
 ];
+
 let audioCtx = null;
 
 function getAudioContext() {
@@ -219,6 +230,26 @@ function buildDuelRematchButton() {
     btn.innerText = "REMATCH";
     btn.onclick = requestDuelRematch;
     return btn;
+}
+
+async function createPrivateDuelLink() {
+    const name = getDuelCodename();
+    const res = await fetch("/duel/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            name: name,
+            length: selectedDuelLength,
+            timer: selectedDuelTimer
+        })
+    });
+    const data = await res.json();
+    const url = window.location.origin + "/?duel=" + data.room_id;
+    navigator.clipboard.writeText(url);
+    playTone(740, 0.1, "triangle", 0.07);
+    alert("Private Duel link copied! Entering room now—send the link to your friend.");
+    document.getElementById("duel-modal").classList.add("hidden");
+    await joinDuelRoom(data.room_id);
 }
 
 async function requestDuelRematch() {
@@ -388,12 +419,16 @@ function toggleMutator(name, btnEl) {
 
 function selectOption(groupName, val, btnEl) {
     playTone(580, 0.05, "sine", 0.06);
+    
     const map = {
         difficulty: "difficulty-group",
         attempts: "attempts-group",
         timer: "timer-group",
-        customClues: "custom-clues-group"
+        customClues: "custom-clues-group",
+        duelLength: "duel-length-group",
+        duelTimer: "duel-timer-group"
     };
+
     const containerId = map[groupName];
     document.querySelectorAll("#" + containerId + " .seg-btn").forEach(function(b) {
         b.classList.remove("active");
@@ -404,6 +439,9 @@ function selectOption(groupName, val, btnEl) {
     else if (groupName === "attempts") selectedMaxAttempts = parseInt(val, 10);
     else if (groupName === "timer") selectedTimerSeconds = parseInt(val, 10);
     else if (groupName === "customClues") customClues = parseInt(val, 10);
+    else if (groupName === "duelLength") selectedDuelLength = parseInt(val, 10);
+    else if (groupName === "duelTimer") selectedDuelTimer = parseInt(val, 10);
+
 }
 
 function stopTimer() {
@@ -839,7 +877,9 @@ async function joinDuelRoom(roomId) {
     duelRoomId = data.room_id;
     duelRole = data.role;
     duelRound = 1
-    pinLength = 4;
+    duelTimerLimit = data.timer || 0;
+    pinLength = data.length || 4;
+    duelTimerLimit > 0 ? startCountdown(duelTimerLimit) : startSpeedrunStopwatch();
     maxAttempts = 0;
     guessHistory = [];
     gameOver = false;
@@ -1102,6 +1142,26 @@ function buildShareButton(attemptsUsed, maxTries, won) {
     return btn;
 }
 
+async function createPrivateDuelLink() {
+    const name = getDuelCodename();
+    const res = await fetch("/duel/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            name: name,
+            length: selectedDuelLength,
+            timer: selectedDuelTimer
+        })
+    });
+    const data = await res.json();
+    const url = window.location.origin + "/?duel=" + data.room_id;
+    navigator.clipboard.writeText(url);
+    playTone(740, 0.1, "triangle", 0.07);
+    alert("Private Duel link copied! Entering room now—send the link to your friend.");
+    document.getElementById("duel-modal").classList.add("hidden");
+    await joinDuelRoom(data.room_id);
+}
+
 function unlockBadge(id) {
     if (!unlockedBadges.includes(id)) {
         unlockedBadges.push(id);
@@ -1183,9 +1243,12 @@ async function submitGuess() {
             triggerCalcEffect("pulse-win");
 
             if (typeof data.daily_solves === "number") dailySolvesCount = data.daily_solves;
-            
+
             if (gameMode === "duel" && duelRoomId) {
-                if (duelPollInterval) clearInterval(duelPollInterval);
+                if (duelPollInterval) { clearInterval(duelPollInterval); duelPollInterval = null; }
+                const elapsedDuel = duelTimerLimit > 0
+                    ? Math.max(0.1, duelTimerLimit - (timeRemaining / 10))
+                    : speedrunElapsed;
                 fetch("/duel/sync", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -1194,20 +1257,18 @@ async function submitGuess() {
                         role: duelRole,
                         attempts: data.attempts,
                         won: true,
-                        elapsed: speedrunElapsed
+                        elapsed: elapsedDuel
                     })
                 });
             }
 
-            let earnedXP = 0;
-            if (gameMode !== "daily_speed") {
-                earnedXP = Math.floor((15 + (pinLength * 8)) / 3);
-                if (mutNoRepeat) earnedXP += 3;
-                if (mutTimeDrain && selectedTimerSeconds > 0) earnedXP += 5;
-                if (mutVirusJam) earnedXP += 6;
-                if (gameMode === "daily") earnedXP += 8;
-                if (gameMode === "heist" && heistStage === 3) earnedXP += 15;
-            }
+            let rawXP = 15 + (pinLength * 8);
+            if (mutNoRepeat) rawXP += 10;
+            if (mutTimeDrain && selectedTimerSeconds > 0) rawXP += 15;
+            if (mutVirusJam) rawXP += 20;
+            if (gameMode === "daily") rawXP += 25;
+            if (gameMode === "heist" && heistStage === 3) rawXP += 45;
+            const earnedXP = (gameMode === "daily_speed") ? 0 : Math.max(1, Math.round(rawXP / 3));
 
             if (!isHeistAdvance) {
                 winStreak += 1;
@@ -1222,9 +1283,22 @@ async function submitGuess() {
                 if (winStreak >= 5) unlockBadge("streak_5");
                 if (pinLength === 6) unlockBadge("extreme_6");
                 if (mutVirusJam) unlockBadge("virus_clear");
+                if (totalCracked >= 100) unlockBadge("centurion");
+
+                if (gameMode === "daily") recordExplorerMode("daily");
+                if (gameMode === "heist" && heistStage === 3) {
+                    unlockBadge("heist_master");
+                    recordExplorerMode("heist");
+                }
+                if (gameMode === "duel") {
+                    unlockBadge("duelist");
+                    recordExplorerMode("duel");
+                }
 
                 if (gameMode === "daily_speed") {
+                    recordExplorerMode("daily_speed");
                     const finalTime = parseFloat(speedrunElapsed.toFixed(1));
+                    if (finalTime < 15.0) unlockBadge("speed_demon");
                     if (bestDailySpeed === 0 || finalTime < bestDailySpeed) {
                         bestDailySpeed = finalTime;
                         localStorage.setItem("pinCrackerBestSpeed", String(bestDailySpeed));
@@ -1273,7 +1347,6 @@ async function submitGuess() {
                 winActions.appendChild(buildMenuButton());
             }
             entry.appendChild(winActions);
-
         } else if (data.lost) {
             gameOver = true;
             clearVirusJam();
@@ -1312,6 +1385,7 @@ async function submitGuess() {
         isSubmitting = false;
     }
 }
+
 
 async function resetGame() {
     isSubmitting = false;
