@@ -349,6 +349,15 @@ def index():
     info = start_new_session("normal", 8, "standard")
     return render_template("index.html", hints=info["hints"], length=info["length"], daily_solves=daily_solves)
 
+@app.route("/robots.txt")
+def robots():
+    return "User-agent: *\nAllow: /\nSitemap: https://onrender.com\n", 200, {"Content-Type": "text/plain"}
+
+@app.route("/sitemap.xml")
+def sitemap():
+    xml = '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://sitemaps.org"><url><loc>https://onrender.com</loc><priority>1.0</priority></url></urlset>'
+    return xml, 200, {"Content-Type": "application/xml"}
+
 @app.route("/favicon.ico")
 def favicon():
     return send_from_directory("static", "favicon.png", mimetype="image/png")
@@ -580,6 +589,9 @@ def duel_sync():
             room["winner"] = room["guest"]
             room["win_time"] = round(elapsed, 1)
 
+    opp_name = room.get("guest") if role == "host" else room.get("host")
+    opp_attempts = room.get("guest_attempts", 0) if role == "host" else room.get("host_attempts", 0)
+    
     return jsonify({
         "round": room.get("round", 1),
         "ready": bool(room["host"] and room["guest"]),
