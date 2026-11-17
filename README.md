@@ -2,7 +2,7 @@
 
 A retro-futuristic, vault-cracking deduction game built with **Python (Flask)**, **Vanilla JavaScript**, and **Upstash Redis**. Analyze intercepted mathematical telemetry clues, track ruled-out digits on a live matrix, and bypass the keypad lock before security triggers.
 
-**[▶ Play Live on Render](https://pin-cracker.onrender.com)**
+**[▶ Play Live on Render](https://pin-decipherer.onrender.com)**
 
 ---
 
