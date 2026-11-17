@@ -355,7 +355,7 @@ def robots():
 
 @app.route("/sitemap.xml")
 def sitemap():
-    xml = '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://sitemaps.org"><url><loc>https://onrender.com</loc><priority>1.0</priority></url></urlset>'
+    xml = '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://sitemaps.org"><url><loc>https://pin-decipherer.onrender.com/</loc><priority>1.0</priority></url></urlset>'
     return xml, 200, {"Content-Type": "application/xml"}
 
 @app.route("/favicon.ico")
