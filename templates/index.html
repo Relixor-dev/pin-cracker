@@ -212,20 +212,35 @@
             <h2>// LIVE 1V1 HEAD-TO-HEAD DUEL</h2>
             <button type="button" class="close-modal" onclick="closeDuelModal()">&times;</button>
         </div>
-        <p class="modal-desc">Race another agent on the exact same 4-digit PIN. First to crack it wins!</p>
+        <p class="modal-desc">Race another agent on the exact same PIN. First to crack it wins!</p>
         <small class="agent-name-note">Do not change your username after you start queuing for a game.</small>
         <div class="config-section">
             <div class="config-label">YOUR DUEL CODENAME</div>
             <input type="text" id="duel-handle-input" class="terminal-input" maxlength="14" placeholder="AGENT CODENAME">
         </div>
+        <div class="config-section">
+            <div class="config-label">PRIVATE DUEL PIN LENGTH</div>
+            <div class="segmented-group" id="duel-length-group">
+                <button type="button" class="seg-btn" onclick="selectOption('duelLength', '3', this)">3-DIGIT</button>
+                <button type="button" class="seg-btn active" onclick="selectOption('duelLength', '4', this)">4-DIGIT</button>
+                <button type="button" class="seg-btn" onclick="selectOption('duelLength', '5', this)">5-DIGIT</button>
+            </div>
+        </div>
+        <div class="config-section">
+            <div class="config-label">PRIVATE DUEL TIMER</div>
+            <div class="segmented-group" id="duel-timer-group">
+                <button type="button" class="seg-btn active" onclick="selectOption('duelTimer', '0', this)">OFF</button>
+                <button type="button" class="seg-btn" onclick="selectOption('duelTimer', '30', this)">30s</button>
+                <button type="button" class="seg-btn" onclick="selectOption('duelTimer', '60', this)">60s</button>
+            </div>
+        </div>
         <div class="start-actions">
-            <button type="button" class="launch-btn" id="matchmake-btn" onclick="toggleMatchmaking()">FIND ONLINE MATCH</button>
+            <button type="button" class="launch-btn" id="matchmake-btn" onclick="toggleMatchmaking()">FIND ONLINE MATCH (4D)</button>
             <button type="button" class="secondary-btn" onclick="createPrivateDuelLink()">CREATE PRIVATE DUEL LINK</button>
         </div>
         <div class="duel-status-box hidden" id="duel-queue-status">Scanning global queue for online agents...</div>
     </div>
 </div>
-
 
 <div class="modal-overlay hidden" id="rules-modal" onclick="closeRules()">
     <div class="modal-card rules-wide" onclick="event.stopPropagation()">
