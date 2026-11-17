@@ -57,8 +57,6 @@ const RANKS = [
     { minXP: 3800, title: "SYSTEM ARCHITECT" },
     { minXP: 5500, title: "GHOST ROOT" },
     { minXP: 8000, title: "ZERO-DAY SOVEREIGN" }
-    { minXP: 10000, title: "CODE MASTER"}
-    { minXP: 15000, title: "TRUE HACKER"}
 ];
 
 const THEMES = [
