@@ -156,13 +156,18 @@ def generate_code(length=4, rng=None, unique_only=False):
         return "".join(r.sample(digits, length))
     return "".join(str(r.randint(0, 9)) for _ in range(length))
 
-def _create_duel_room(host_name, guest_name=None):
+def _create_duel_room(host_name, guest_name=None, length=4, timer=0):
     room_id = "".join(random.choices("ABCDEFGHJKLMNPQRSTUVWXYZ23456789", k=6))
-    code = generate_code(4, None, False)
-    hints = generate_hints(code, None, total_count=3)
+    clean_len = int(length) if int(length) in (3, 4, 5) else 4
+    clean_timer = int(timer) if int(timer) in (0, 30, 60) else 0
+    clue_count = 3 if clean_len <= 4 else 4
+    code = generate_code(clean_len, None, False)
+    hints = generate_hints(code, None, total_count=clue_count)
     room_data = {
         "room_id": room_id,
         "round": 1,
+        "length": clean_len,
+        "timer": clean_timer,
         "code": code,
         "hints": hints,
         "host": host_name,
@@ -359,7 +364,7 @@ def sitemap():
         '<?xml version="1.0" encoding="UTF-8"?>\n'
         '<urlset xmlns="http://sitemaps.org">\n'
         '  <url>\n'
-        '    <loc>https://pin-decipherer.onrender.com</loc>\n'
+        '    <loc>https://pin-deciponrender.com</loc>\n'
         '    <changefreq>weekly</changefreq>\n'
         '    <priority>1.0</priority>\n'
         '  </url>\n'
@@ -535,7 +540,9 @@ def duel_cancel():
 def duel_create():
     data = request.get_json() or {}
     handle = "".join(c for c in str(data.get("name", "HOST_AGENT")) if c.isalnum() or c in "_-").upper()[:14] or "HOST_AGENT"
-    room = _create_duel_room(handle, None)
+    length = data.get("length", 4)
+    timer = data.get("timer", 0)
+    room = _create_duel_room(handle, None, length=length, timer=timer)
     return jsonify({"room_id": room["room_id"]})
 
 @app.route("/duel/join", methods=["POST"])
@@ -556,9 +563,12 @@ def duel_join():
     else:
         return jsonify({"error": "Duel room is already full."})
 
+    room_len = int(room.get("length", 4))
+    room_timer = int(room.get("timer", 0))
+
     session["code"] = room["code"]
     session["mode"] = "duel"
-    session["length"] = 4
+    session["length"] = room_len
     session["max_attempts"] = 0
     session["attempts"] = 0
     session["revealed_slots"] = []
@@ -571,7 +581,8 @@ def duel_join():
         "host": room["host"],
         "guest": room["guest"],
         "hints": room["hints"],
-        "length": 4
+        "length": room_len,
+        "timer": room_timer
     })
 
 @app.route("/duel/sync", methods=["POST"])
@@ -638,11 +649,13 @@ def duel_rematch():
     if not room:
         return jsonify({"error": "Duel room expired."})
 
+    room_len = int(room.get("length", 4))
     if room.get("winner") is not None:
-        code = generate_code(4, None, False)
+        clue_count = 3 if room_len <= 4 else 4
+        code = generate_code(room_len, None, False)
         room["round"] = int(room.get("round", 1)) + 1
         room["code"] = code
-        room["hints"] = generate_hints(code, None, total_count=3)
+        room["hints"] = generate_hints(code, None, total_count=clue_count)
         room["host_attempts"] = 0
         room["guest_attempts"] = 0
         room["winner"] = None
@@ -651,7 +664,7 @@ def duel_rematch():
 
     session["code"] = room["code"]
     session["mode"] = "duel"
-    session["length"] = 4
+    session["length"] = room_len
     session["max_attempts"] = 0
     session["attempts"] = 0
     session["revealed_slots"] = []
@@ -660,6 +673,8 @@ def duel_rematch():
 
     return jsonify({
         "round": room["round"],
+        "length": room_len,
+        "timer": int(room.get("timer", 0)),
         "hints": room["hints"]
     })
 
