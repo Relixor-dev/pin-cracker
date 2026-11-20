@@ -201,8 +201,6 @@
             <div class="config-label">AGENT CODENAME</div>
             <input type="text" class="terminal-input" id="agent-handle-input" maxlength="14" placeholder="ANON_AGENT">
             <button type="button" class="secondary-btn" onclick="postScoreToLeaderboard()">SYNC CLEARANCE XP</button>
-            <button type="button" class="secondary-btn" onclick="restoreProgressFromLeaderboard()">RESTORE SAVED PROGRESS</button>
-            <small class="agent-name-note" id="lb-restore-status" role="status" aria-live="polite"></small>
         </div>
         <div class="ranks-list" id="leaderboard-list"></div>
     </div>
@@ -406,6 +404,6 @@
     </div>
 </div>
 
-<script src="{{ url_for('static', filename='script.js') }}"></script>
+<script src="{{ url_for('static', filename='script.js') }}?v=restore-removed"></script>
 </body>
 </html>
