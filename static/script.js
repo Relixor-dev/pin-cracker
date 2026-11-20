@@ -710,6 +710,50 @@ async function postScoreToLeaderboard() {
     renderLeaderboard(data.entries || [], "xp");
 }
 
+async function restoreProgressFromLeaderboard() {
+    const input = document.getElementById("agent-handle-input");
+    const handle = (input ? input.value.trim() : "").replace(/[^a-zA-Z0-9_-]/g, "").toUpperCase().slice(0, 14);
+    const status = document.getElementById("lb-restore-status");
+    if (!handle) {
+        status.innerText = "Enter the codename used when you synced your XP.";
+        return;
+    }
+
+    status.innerText = "Checking saved progress...";
+    try {
+        const res = await fetch("/profile/" + encodeURIComponent(handle));
+        if (!res.ok) throw new Error("Profile request failed.");
+        const data = await res.json();
+        if (!data.found || !data.profile) {
+            status.innerText = "No synced progress found for that codename.";
+            return;
+        }
+
+        const profile = data.profile;
+        totalXP = Math.max(totalXP, Number(profile.xp) || 0);
+        totalCracked = Math.max(totalCracked, Number(profile.cracked) || 0);
+        bestStreak = Math.max(bestStreak, Number(profile.bestStreak) || 0);
+        const savedDifficulty = parseInt(profile.maxDiff, 10);
+        if (savedDifficulty > (parseInt(maxDiffCleared, 10) || 0)) maxDiffCleared = savedDifficulty + "-DIGIT";
+        const savedSpeed = parseFloat(profile.fastDaily);
+        if (savedSpeed > 0 && (!bestDailySpeed || savedSpeed < bestDailySpeed)) bestDailySpeed = savedSpeed;
+        agentHandle = data.name || handle;
+
+        localStorage.setItem("pinCrackerHandle", agentHandle);
+        localStorage.setItem("pinCrackerXP", String(totalXP));
+        localStorage.setItem("pinCrackerTotal", String(totalCracked));
+        localStorage.setItem("pinCrackerBest", String(bestStreak));
+        localStorage.setItem("pinCrackerMaxDiff", maxDiffCleared);
+        if (bestDailySpeed > 0) localStorage.setItem("pinCrackerBestSpeed", String(bestDailySpeed));
+
+        if (input) input.value = agentHandle;
+        updateStatsDisplay();
+        status.innerText = "Progress restored: " + totalXP + " XP.";
+    } catch (error) {
+        status.innerText = "Could not restore progress. Please try again.";
+    }
+}
+
 function renderLeaderboard(entries, tab) {
     const list = document.getElementById("leaderboard-list");
     list.innerHTML = "";

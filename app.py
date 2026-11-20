@@ -103,10 +103,15 @@ def submit_leaderboard_score(handle, xp, profile=None):
         clean_name = "ANON_AGENT"
     score_val = max(0, int(xp))
 
-    if isinstance(profile, dict):
+    current_raw = _redis_cmd("ZSCORE", "pin_cracker_lb", clean_name)
+    if isinstance(profile, dict) and (current_raw is None or score_val >= int(float(current_raw))):
+        try:
+            profile_xp = int(profile.get("xp", 0))
+        except (TypeError, ValueError):
+            profile_xp = score_val
+        profile["xp"] = max(score_val, profile_xp)
         _redis_cmd("SET", f"pin_cracker_prof:{clean_name}", json.dumps(profile))
 
-    current_raw = _redis_cmd("ZSCORE", "pin_cracker_lb", clean_name)
     if current_raw is not None:
         if score_val > int(float(current_raw)):
             _redis_cmd("ZADD", "pin_cracker_lb", str(score_val), clean_name)
@@ -497,10 +502,32 @@ def daily_speed_lb():
 def agent_profile(handle):
     clean = "".join(c for c in str(handle) if c.isalnum() or c in "_-").upper()[:14]
     raw = _redis_cmd("GET", f"pin_cracker_prof:{clean}")
+    score = _redis_cmd("ZSCORE", "pin_cracker_lb", clean)
     if raw:
         try:
-            return jsonify({"found": True, "name": clean, "profile": json.loads(raw)})
-        except Exception:
+            profile = json.loads(raw)
+            if isinstance(profile, dict):
+                if score is not None:
+                    try:
+                        profile_xp = int(profile.get("xp", 0))
+                    except (TypeError, ValueError):
+                        profile_xp = 0
+                    profile["xp"] = max(profile_xp, int(float(score)))
+                return jsonify({"found": True, "name": clean, "profile": profile})
+        except (TypeError, ValueError):
+            pass
+
+    if score is None and os.path.exists(LEADERBOARD_FILE):
+        try:
+            with open(LEADERBOARD_FILE, "r", encoding="utf-8") as f:
+                score = json.load(f).get(clean)
+        except (OSError, ValueError, TypeError):
+            score = None
+
+    if score is not None:
+        try:
+            return jsonify({"found": True, "name": clean, "profile": {"xp": int(float(score))}})
+        except (TypeError, ValueError):
             pass
     return jsonify({"found": False, "name": clean})
 
