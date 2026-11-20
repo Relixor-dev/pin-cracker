@@ -1169,6 +1169,18 @@ function unlockBadge(id) {
     }
 }
 
+function recordExplorerMode(mode) {
+    if (!explorerModesCleared.includes(mode)) {
+        explorerModesCleared.push(mode);
+        localStorage.setItem("pinDeciphererExplorer", JSON.stringify(explorerModesCleared));
+    }
+
+    const requiredModes = ["daily", "daily_speed", "heist", "duel"];
+    if (requiredModes.every(function(requiredMode) { return explorerModesCleared.includes(requiredMode); })) {
+        unlockBadge("explorer");
+    }
+}
+
 async function buyClue() {
     if (gameOver || isSubmitting || decryptUsed) return;
     isSubmitting = true;

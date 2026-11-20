@@ -9,6 +9,8 @@ from flask import send_from_directory
 app = Flask(__name__)
 app.secret_key = "pin-cracker-secret-key"
 
+SITE_URL = "https://pin-decipherer.onrender.com"
+
 DAILY_STATS_FILE = "daily_stats.json"
 LEADERBOARD_FILE = "leaderboard_local.json"
 UPSTASH_URL = os.environ.get("UPSTASH_REDIS_REST_URL", "").rstrip("/")
@@ -356,15 +358,16 @@ def index():
 
 @app.route("/robots.txt")
 def robots():
-    return "User-agent: *\nAllow: /\nSitemap: https://onrender.com\n", 200, {"Content-Type": "text/plain"}
+    content = f"User-agent: *\nAllow: /\nSitemap: {SITE_URL}/sitemap.xml\n"
+    return content, 200, {"Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-cache"}
 
 @app.route("/sitemap.xml")
 def sitemap():
     xml = (
         '<?xml version="1.0" encoding="UTF-8"?>\n'
-        '<urlset xmlns="http://sitemaps.org">\n'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
         '  <url>\n'
-        '    <loc>https://pin-deciponrender.com</loc>\n'
+        f'    <loc>{SITE_URL}/</loc>\n'
         '    <changefreq>weekly</changefreq>\n'
         '    <priority>1.0</priority>\n'
         '  </url>\n'
@@ -400,7 +403,7 @@ def guess():
     attempts = session["attempts"]
 
     statuses, exact, misplaced = evaluate_guess(secret, user_guess)
-    won = (user_guess == secret)
+    won = (exact == length)
     lost = (not won and max_attempts > 0 and attempts >= max_attempts)
 
     daily_solves = None
