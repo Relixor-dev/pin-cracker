@@ -169,10 +169,12 @@ async function pollQueueStatus() {
 function stopMatchmaking() {
     if (matchmakeInterval) { clearInterval(matchmakeInterval); matchmakeInterval = null; }
     const btn = document.getElementById("matchmake-btn");
+    const privateBtn = document.getElementById("private-duel-btn");
     const box = document.getElementById("duel-queue-status");
     const input = document.getElementById("duel-handle-input");
     if (input) input.disabled = false;
-    if (btn) btn.innerText = "FIND ONLINE MATCH";
+    if (btn) { btn.innerText = "FIND ONLINE MATCH (4D)"; btn.disabled = false; }
+    if (privateBtn) privateBtn.disabled = false;
     if (box) box.classList.add("hidden");
     if (agentHandle) {
         fetch("/duel/cancel", {
@@ -183,45 +185,57 @@ function stopMatchmaking() {
     }
 }
 
-async function toggleMatchmaking() {
-    if (matchmakeInterval) { stopMatchmaking(); return; }
+async function createPrivateDuelLink() {
+    if (matchmakeInterval) stopMatchmaking();
     const name = getDuelCodename();
+    const res = await fetch("/duel/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            name: name,
+            length: selectedDuelLength,
+            timer: selectedDuelTimer
+        })
+    });
+    const data = await res.json();
+    const roomId = data.room_id;
+    const url = window.location.origin + "/?duel=" + roomId;
+    navigator.clipboard.writeText(url);
+    playTone(740, 0.1, "triangle", 0.07);
+
     const btn = document.getElementById("matchmake-btn");
+    const privateBtn = document.getElementById("private-duel-btn");
     const box = document.getElementById("duel-queue-status");
     const input = document.getElementById("duel-handle-input");
-    if (input) input.disabled = true;
-    btn.innerText = "CANCEL SEARCH";
-    box.classList.remove("hidden");
-    box.innerText = "Scanning global queue for online agents...";
 
-    let isMatchLocked = false;
-    const pollQueue = async function() {
-        if (isMatchLocked || gameMode === "duel") return;
-        const res = await fetch("/duel/matchmake", {
+    if (input) input.disabled = true;
+    if (btn) btn.innerText = "CANCEL PRIVATE LOBBY";
+    if (privateBtn) privateBtn.disabled = true;
+    box.classList.remove("hidden");
+    box.innerText = "Link copied! Waiting in lobby [" + roomId + "] for friend to join...";
+
+    let lobbyLocked = false;
+    matchmakeInterval = setInterval(async function() {
+        if (lobbyLocked) return;
+        const syncRes = await fetch("/duel/sync", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name: name })
+            body: JSON.stringify({ room_id: roomId, role: "host", attempts: 0, won: false, elapsed: 0 })
         });
-        const data = await res.json();
-        if (isMatchLocked || gameMode === "duel") return;
-
-        if (data.status === "matched") {
-            isMatchLocked = true;
+        const syncData = await syncRes.json();
+        if (!lobbyLocked && syncData.ready) {
+            lobbyLocked = true;
             clearInterval(matchmakeInterval);
             matchmakeInterval = null;
             if (input) input.disabled = false;
+            if (btn) btn.innerText = "FIND ONLINE MATCH (4D)";
+            if (privateBtn) privateBtn.disabled = false;
             box.classList.add("hidden");
-            btn.innerText = "FIND ONLINE MATCH";
             document.getElementById("duel-modal").classList.add("hidden");
-            await joinDuelRoom(data.room_id);
+            await joinDuelRoom(roomId);
         }
-    };
-    await pollQueue();
-    if (!isMatchLocked) {
-        matchmakeInterval = setInterval(pollQueue, 2000);
-    }
+    }, 1500);
 }
-
 
 function buildDuelRematchButton() {
     const btn = document.createElement("button");
